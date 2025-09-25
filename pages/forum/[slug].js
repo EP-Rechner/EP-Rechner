@@ -135,10 +135,9 @@ export default function ForumCategory() {
       {/* Neuer Thread */}
       <div style={{ marginTop: 24 }}>
         <h2>Neuen Thread erstellen</h2>
-        {!session?.user && <p>Bitte zuerst einloggen.</p>}
-        {session?.user && !canCreateInThisCategory && cat?.slug === 'ankuendigungen' && (
-          <p>Nur Admins dürfen hier neue Threads erstellen.</p>
-        )}
+        {session?.user && !canCreateInThisCategory && cat?.slug?.toLowerCase() === 'ankuendigungen' && (
+  <p>Nur Admins dürfen hier neue Threads erstellen.</p>
+)}
 
         {session?.user && canCreateInThisCategory && (
           <form onSubmit={createThread} style={{ display:'grid', gap: 8, maxWidth: 640 }}>
