@@ -32,7 +32,7 @@ export default function Login() {
     // 2. Username aus Tabelle "Users" laden
     const { data: userData, error: userError } = await supabase
       .from('Users')
-      .select('Username')
+      .select('Username, role')
       .eq('id', data.user.id)
       .single()
 
