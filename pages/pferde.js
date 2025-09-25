@@ -770,13 +770,7 @@ const pageRows = filtered.slice(start, end);
       <div className="hscroll">
         <div className="content">
           <header className="site-bar top">
-  <h1>Equinepassion Rechner — Meine Pferde (BETA)</h1>
-  <nav className="nav-links">
-    <Link href="/verpaaren">Verpaaren</Link>
-    <Link href="/verpaarungen">Verpaarungen</Link>
-    <Link href="/import">Eintragen</Link>
-    <Link href="/forum">Forum</Link>
-  </nav>
+  <h1>Equinepassion Rechner — Meine Pferde</h1>
 </header>
 
 

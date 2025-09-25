@@ -25,7 +25,7 @@ export default function ForumCategory() {
       if (session?.user) {
         const { data: meRow } = await supabase
           .from('Users')
-          .select('Username, Role')
+          .select('Username, role')
           .eq('id', session.user.id)
           .single()
         setMe(meRow || null)
@@ -41,7 +41,7 @@ export default function ForumCategory() {
     if (session?.user) {
       const { data: meRow } = await supabase
         .from('Users')
-        .select('Username, Role')
+        .select('Username, role')
         .eq('id', session.user.id)
         .single()
       setMe(meRow || null)
@@ -69,7 +69,7 @@ export default function ForumCategory() {
           .from('forum_threads')
           .select(`
             id, title, created_at, author_id, locked,
-            author:Users ( Username, Role )
+            author:Users ( Username, role )
           `)
           .eq('category_id', category.id)
           .order('created_at', { ascending: false })
