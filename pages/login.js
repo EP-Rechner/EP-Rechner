@@ -12,7 +12,7 @@ export default function Login() {
   const handleLogin = async (e) => {
     e.preventDefault()
 
-    // Schritt 1: Einloggen
+    // 1. Login mit Supabase
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -23,7 +23,13 @@ export default function Login() {
       return
     }
 
-    // Schritt 2: User-Daten aus eigener Tabelle "Users" holen
+    // Falls kein User zurückkommt → Fehler
+    if (!data.user) {
+      setErrorMsg("Login fehlgeschlagen. Bitte erneut versuchen.")
+      return
+    }
+
+    // 2. Username aus Tabelle "Users" laden
     const { data: userData, error: userError } = await supabase
       .from('Users')
       .select('Username')
@@ -35,13 +41,11 @@ export default function Login() {
       return
     }
 
-    // Schritt 3: Prüfen ob Username ein Platzhalter ist
-    if (userData.Username && userData.Username.startsWith('user_')) {
-      // Weiterleitung zur Username-Seite
+    // 3. Weiterleitung: Username prüfen
+    if (userData?.Username?.startsWith('user_')) {
       router.push('/set-username')
     } else {
-      // Normale Weiterleitung (z. B. Dashboard)
-      router.push('/')
+      router.push('/pferde') // <--- statt "/" direkt zur Pferde-Seite
     }
   }
 
