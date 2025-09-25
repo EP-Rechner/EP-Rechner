@@ -35,6 +35,26 @@ export default function ForumCategory() {
   }, [])
 
   useEffect(() => {
+  const init = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    setSession(session || null)
+    if (session?.user) {
+      const { data: meRow } = await supabase
+        .from('Users')
+        .select('Username, Role')
+        .eq('id', session.user.id)
+        .single()
+      setMe(meRow || null)
+
+      console.log("User Session ID:", session.user.id)
+      console.log("Geladener User:", meRow)
+    }
+  }
+  init()
+}, [])
+
+
+  useEffect(() => {
     if (!slug) return
     const load = async () => {
       const { data: category } = await supabase
