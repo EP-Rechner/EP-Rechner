@@ -60,8 +60,13 @@ export default function ForumCategory() {
   }, [slug])
 
   const canCreateInThisCategory =
-    session?.user &&
-    (cat?.slug !== 'ankuendigungen' || me?.Role === 'admin')
+  session?.user &&
+  (
+    !cat?.slug || 
+    cat.slug.toLowerCase() !== 'ankuendigungen' ||
+    (me?.Role && me.Role.toLowerCase() === 'admin')
+  )
+
 
   const createThread = async (e) => {
     e.preventDefault()
