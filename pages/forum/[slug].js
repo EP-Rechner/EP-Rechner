@@ -11,7 +11,7 @@ export default function ForumCategory() {
   const [cat, setCat] = useState(null)
   const [threads, setThreads] = useState([])
   const [session, setSession] = useState(null)
-  const [me, setMe] = useState(null) // Users row (Username, Role)
+  const [me, setMe] = useState(null) // Users row (Username, role)
 
   // Form state
   const [title, setTitle] = useState('')
@@ -69,7 +69,7 @@ export default function ForumCategory() {
           .from('forum_threads')
           .select(`
             id, title, created_at, author_id, locked,
-            author:Users ( Username, Role )
+            author:Users ( Username, role )
           `)
           .eq('category_id', category.id)
           .order('created_at', { ascending: false })
@@ -84,7 +84,7 @@ export default function ForumCategory() {
   (
     !cat?.slug || 
     cat.slug.toLowerCase() !== 'ankuendigungen' ||
-    (me?.role && me.Role.toLowerCase() === 'admin')
+    (me?.role && me.role.toLowerCase() === 'admin')
   )
 
 
