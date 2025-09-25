@@ -775,6 +775,7 @@ const pageRows = filtered.slice(start, end);
     <Link href="/verpaaren">Verpaaren</Link>
     <Link href="/verpaarungen">Verpaarungen</Link>
     <Link href="/import">Eintragen</Link>
+    <Link href="/forum">Forum</Link>
   </nav>
 </header>
 
