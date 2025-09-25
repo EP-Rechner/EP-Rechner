@@ -29,6 +29,7 @@ export default function ForumCategory() {
           .eq('id', session.user.id)
           .single()
         setMe(meRow || null)
+        console.log('ME', meRow)
       }
     }
     init()
@@ -57,22 +58,30 @@ export default function ForumCategory() {
   useEffect(() => {
     if (!slug) return
     const load = async () => {
-      const { data: category } = await supabase
+      const { data: category, error: catErr } = await supabase
         .from('forum_categories')
         .select('*')
         .eq('slug', slug)
         .single()
+
+        if (catErr) {
+        console.error(catErr)
+        setCat(null)
+        setThreads([])
+        return
+      }
       setCat(category || null)
 
       if (category) {
-        const { data: rows } = await supabase
+        const { data: rows, error: thrErr } = await supabase
           .from('forum_threads')
           .select(`
             id, title, created_at, author_id, locked,
-            author:Users ( Username, role )
+             author:Users!forum_threads_author_id_fkey ( Username, role )
           `)
           .eq('category_id', category.id)
           .order('created_at', { ascending: false })
+        if (thrErr) console.error(thrErr)
         setThreads(rows || [])
       }
     }
@@ -80,12 +89,11 @@ export default function ForumCategory() {
   }, [slug])
 
   const canCreateInThisCategory =
-  session?.user &&
-  (
-    !cat?.slug || 
-    cat.slug.toLowerCase() !== 'ankuendigungen' ||
-    (me?.role && me.role.toLowerCase() === 'admin')
-  )
+    !!session?.user && (
+      !cat?.slug ||
+      cat.slug.toLowerCase() !== 'ankuendigungen' ||
+      (me?.Role && me.Role.toLowerCase() === 'admin')  // <- konsistent "Role"
+    )
 
 
   const createThread = async (e) => {
