@@ -25,7 +25,7 @@ export default function ForumCategory() {
       if (session?.user) {
         const { data: meRow } = await supabase
           .from('Users')
-          .select('Username, Role')
+          .select('Username, role')
           .eq('id', session.user.id)
           .single()
         setMe(meRow || null)
@@ -41,7 +41,7 @@ export default function ForumCategory() {
     if (session?.user) {
       const { data: meRow } = await supabase
         .from('Users')
-        .select('Username, Role')
+        .select('Username, role')
         .eq('id', session.user.id)
         .single()
       setMe(meRow || null)
@@ -84,7 +84,7 @@ export default function ForumCategory() {
   (
     !cat?.slug || 
     cat.slug.toLowerCase() !== 'ankuendigungen' ||
-    (me?.Role && me.Role.toLowerCase() === 'admin')
+    (me?.role && me.Role.toLowerCase() === 'admin')
   )
 
 
