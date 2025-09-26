@@ -1,5 +1,6 @@
-/** @type {import('next-sitmap').IConfig} */
+/** @type {import('next-sitemap').IConfig} */
 module.exports = {
-    siteUrl: 'https://equine-rechner.de',
-    generateRobotsTxt: true, 
-}
+  siteUrl: 'https://www.equine-rechner.de',
+  generateRobotsTxt: true, // erstellt auch robots.txt
+  sitemapSize: 7000,
+};

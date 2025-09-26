@@ -6,9 +6,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "next dev",
-    "postbuild": "next-sitemap",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "postbuild": "next-sitemap"
   },
   "keywords": [],
   "author": "",
