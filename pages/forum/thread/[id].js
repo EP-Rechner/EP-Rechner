@@ -16,8 +16,11 @@ export default function ThreadPage() {
   const [errorMsg, setErrorMsg] = useState(null)
   const [editingId, setEditingId] = useState(null);
 const [editText, setEditText] = useState('');
-const isAdmin = me?.role?.toLowerCase() === 'admin';
-const isMod   = me?.role?.toLowerCase() === 'moderator' || isAdmin;
+
+const role = (me?.role || '').toLowerCase();
+const isAdmin = role === 'admin';
+const isMod   = isAdmin || role === 'moderator';
+
 
 
   useEffect(() => {
@@ -27,7 +30,7 @@ const isMod   = me?.role?.toLowerCase() === 'moderator' || isAdmin;
       if (session?.user) {
         const { data: meRow } = await supabase
           .from('Users')
-          .select('Username, Role')
+          .select('Username, role')
           .eq('id', session.user.id)
           .single()
         setMe(meRow || null)
@@ -115,17 +118,111 @@ const isMod   = me?.role?.toLowerCase() === 'moderator' || isAdmin;
       )}
 
       {/* Posts */}
-      <div style={{ margin: '12px 0 24px' }}>
-        {posts.map(p => (
-          <div key={p.id} style={{ borderTop:'1px solid #eee', padding:'10px 0' }}>
-            <div style={{ fontSize:12, color:'#666' }}>
-              {p.author?.Username || 'Unbekannt'} • {new Date(p.created_at).toLocaleString()}
+<div style={{ margin: '12px 0 24px' }}>
+  {posts.map(p => {
+    const canEditOwn = session?.user?.id === p.author_id;  // eigener Kommentar
+    const authorRole = (p.author?.role || '').toLowerCase();
+
+    // Sichtbarkeitslogik für Löschen – muss zur RLS passen:
+    // - eigener Kommentar
+    // - admin: immer
+    // - mod: nur wenn der Autor NICHT admin ist
+    const canDelete = !!session?.user && (
+      canEditOwn ||
+      isAdmin ||
+      (isMod && authorRole !== 'admin')
+    );
+
+    return (
+      <div key={p.id} style={{ borderTop:'1px solid #eee', padding:'10px 0' }}>
+        <div style={{ fontSize:12, color:'#666' }}>
+          {p.author?.Username || 'Unbekannt'} • {new Date(p.created_at).toLocaleString()}
+          {authorRole === 'admin' ? ' • (Admin)' : authorRole === 'moderator' ? ' • (Mod)' : ''}
+        </div>
+
+        {editingId === p.id ? (
+          <>
+            <textarea
+              value={editText}
+              onChange={(e)=>setEditText(e.target.value)}
+              rows={4}
+              style={{ width:'100%', padding:8, border:'1px solid #ccc', borderRadius:6 }}
+            />
+            <div style={{ display:'flex', gap:8, marginTop:6 }}>
+              <button
+                type="button"
+                onClick={async () => {
+                  const newText = editText.trim();
+                  if (!newText) return alert('Text darf nicht leer sein.');
+                  const { error } = await supabase
+                    .from('forum_posts')
+                    .update({ content: newText })
+                    .eq('id', p.id);
+                  if (error) return alert(error.message);
+
+                  // neu laden
+                  const { data: reload, error: rErr } = await supabase
+                    .from('forum_posts')
+                    .select(`
+                      id, content, created_at, author_id,
+                      author:Users!forum_posts_author_id_fkey ( Username, role )
+                    `)
+                    .eq('thread_id', id)
+                    .order('created_at', { ascending: true });
+                  if (rErr) return alert(rErr.message);
+
+                  setPosts(reload || []);
+                  setEditingId(null);
+                  setEditText('');
+                }}
+              >
+                Speichern
+              </button>
+              <button type="button" onClick={() => { setEditingId(null); setEditText(''); }}>
+                Abbrechen
+              </button>
             </div>
-            <div style={{ whiteSpace:'pre-wrap' }}>{p.content}</div>
-          </div>
-        ))}
-        {posts.length === 0 && <p>Noch keine Kommentare.</p>}
+          </>
+        ) : (
+          <div style={{ whiteSpace:'pre-wrap' }}>{p.content}</div>
+        )}
+
+        <div style={{ display:'flex', gap:8, marginTop:6 }}>
+          {/* Edit nur eigener Kommentar */}
+          {canEditOwn && editingId !== p.id && (
+            <button
+              type="button"
+              onClick={() => { setEditingId(p.id); setEditText(p.content); }}
+            >
+              Bearbeiten
+            </button>
+          )}
+
+          {/* Löschen nach obigen Regeln */}
+          {canDelete && (
+            <button
+              type="button"
+              onClick={async () => {
+                if (!confirm('Kommentar löschen?')) return;
+                const { error } = await supabase
+                  .from('forum_posts')
+                  .delete()
+                  .eq('id', p.id);
+                if (error) return alert(error.message);
+                setPosts(prev => prev.filter(x => x.id !== p.id));
+              }}
+            >
+              Löschen
+            </button>
+          )}
+        </div>
       </div>
+    );
+  })}
+  {posts.length === 0 && <p>Noch keine Kommentare.</p>}
+</div>
+
+
 
       {/* Kommentarformular */}
       {thread && !thread.locked && (
