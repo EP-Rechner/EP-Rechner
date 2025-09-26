@@ -70,7 +70,6 @@ export default function Home() {
         )}
         <h1>Willkommen beim Equinepassion Rechner (Beta)</h1>
         <p>Bitte nutze die Navigation oben, um dich einzuloggen oder zu registrieren.</p>
-        <p> </p>
 
         <p>Der Rechner befindet sich aktuell in der Beta Phase und wird sich im Laufe der Zeit entwickeln.</p>
         <p>Die Basics des Rechners sind bereits integriert und funktionieren - Pferde eintragen, sortieren, Verpaarungen.</p>
