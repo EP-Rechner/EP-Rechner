@@ -24,7 +24,7 @@ export default function Home() {
 
       if (session?.user) {
         setUser(session.user)
-        // ⚠️ Kleiner Delay, damit Supabase Session setzen kann
+        // kleiner Delay, damit Session sicher steht
         setTimeout(() => {
           router.push('/pferde')
         }, 100)
@@ -36,7 +36,7 @@ export default function Home() {
 
     getSession()
 
-    // Session-Listener → hält Login/Logout aktuell
+    // Listener: reagiert auf Login/Logout
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (session?.user) {
@@ -54,9 +54,21 @@ export default function Home() {
 
   if (loading) return <p>Lade...</p>
 
+  const msg =
+    router.query.reason === 'logout'
+      ? 'Du wurdest abgemeldet.'
+      : router.query.reason === 'idle'
+      ? 'Du wurdest wegen Inaktivität abgemeldet.'
+      : null
+
   if (!user) {
     return (
       <div style={{ padding: '20px' }}>
+        {msg && (
+          <p style={{ background:'#fff7d6', padding:8, border:'1px solid #f0e1a0' }}>
+            {msg}
+          </p>
+        )}
         <h1>Willkommen beim Equinepassion Rechner</h1>
         <p>
           Bitte{' '}
