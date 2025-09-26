@@ -47,7 +47,8 @@ export default function ImportTest() {
 
       const dis = parseDisziplinen(
         { primary: d1 || '-', second: d2 || '-', third: d3 || '-' },
-        { primaryText: t1, secondText: t2, thirdText: t3 }
+        { primaryText: t1, secondText: t2, thirdText: t3 },
+        t1 + "\n" + t2 + "\n" + t3   // oder den kompletten Trainingsseiten-Text, falls du den hast
       )
 
       const combined = {
@@ -118,17 +119,54 @@ export default function ImportTest() {
 
       <hr />
 
-      <h3>Disziplinen (max. 3)</h3>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:10 }}>
-        <input placeholder="Disziplin 1 (z.B. Springen)" value={d1} onChange={e=>setD1(e.target.value)} />
-        <textarea placeholder="Trainingsseite (copy-paste)" value={t1} onChange={e=>setT1(e.target.value)} rows={6} />
+      <select value={d1} onChange={e=>setD1(e.target.value)}>
+  <option value="">Disziplin 1 auswählen</option>
+  <option value="Barock">Barock</option>
+  <option value="Cross Country">Cross Country</option>
+  <option value="Distanz">Distanz</option>
+  <option value="Dressur">Dressur</option>
+  <option value="Fahren">Fahren</option>
+  <option value="Galopprennen">Galopprennen</option>
+  <option value="Holzrücken">Holzrücken</option>
+  <option value="Mehrgang">Mehrgang</option>
+  <option value="Reining">Reining</option>
+  <option value="Springen">Springen</option>
+  <option value="Trail">Trail</option>
+</select>
+<textarea placeholder="Trainingsseite (copy-paste)" value={t1} onChange={e=>setT1(e.target.value)} rows={6} />
 
-        <input placeholder="Disziplin 2" value={d2} onChange={e=>setD2(e.target.value)} />
-        <textarea placeholder="Trainingsseite" value={t2} onChange={e=>setT2(e.target.value)} rows={6} />
+<select value={d2} onChange={e=>setD2(e.target.value)}>
+  <option value="">Disziplin 2 auswählen</option>
+  <option value="Barock">Barock</option>
+  <option value="Cross Country">Cross Country</option>
+  <option value="Distanz">Distanz</option>
+  <option value="Dressur">Dressur</option>
+  <option value="Fahren">Fahren</option>
+  <option value="Galopprennen">Galopprennen</option>
+  <option value="Holzrücken">Holzrücken</option>
+  <option value="Mehrgang">Mehrgang</option>
+  <option value="Reining">Reining</option>
+  <option value="Springen">Springen</option>
+  <option value="Trail">Trail</option>
+</select>
+<textarea placeholder="Trainingsseite" value={t2} onChange={e=>setT2(e.target.value)} rows={6} />
 
-        <input placeholder="Disziplin 3" value={d3} onChange={e=>setD3(e.target.value)} />
-        <textarea placeholder="Trainingsseite" value={t3} onChange={e=>setT3(e.target.value)} rows={6} />
-      </div>
+<select value={d3} onChange={e=>setD3(e.target.value)}>
+  <option value="">Disziplin 3 auswählen</option>
+  <option value="Barock">Barock</option>
+  <option value="Cross Country">Cross Country</option>
+  <option value="Distanz">Distanz</option>
+  <option value="Dressur">Dressur</option>
+  <option value="Fahren">Fahren</option>
+  <option value="Galopprennen">Galopprennen</option>
+  <option value="Holzrücken">Holzrücken</option>
+  <option value="Mehrgang">Mehrgang</option>
+  <option value="Reining">Reining</option>
+  <option value="Springen">Springen</option>
+  <option value="Trail">Trail</option>
+</select>
+<textarea placeholder="Trainingsseite" value={t3} onChange={e=>setT3(e.target.value)} rows={6} />
+
 
       <hr />
 
