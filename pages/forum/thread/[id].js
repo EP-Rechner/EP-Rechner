@@ -14,6 +14,11 @@ export default function ThreadPage() {
   const [me, setMe] = useState(null)
   const [content, setContent] = useState('')
   const [errorMsg, setErrorMsg] = useState(null)
+  const [editingId, setEditingId] = useState(null);
+const [editText, setEditText] = useState('');
+const isAdmin = me?.role?.toLowerCase() === 'admin';
+const isMod   = me?.role?.toLowerCase() === 'moderator' || isAdmin;
+
 
   useEffect(() => {
     const init = async () => {
