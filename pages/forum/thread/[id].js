@@ -128,7 +128,6 @@ const isMod   = isAdmin || role === 'moderator';
     // - admin: immer
     // - mod: nur wenn der Autor NICHT admin ist
     const canDelete = !!session?.user && (
-      canEditOwn ||
       isAdmin ||
       (isMod && authorRole !== 'admin')
     );
