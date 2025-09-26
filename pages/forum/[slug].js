@@ -92,7 +92,7 @@ export default function ForumCategory() {
     !!session?.user && (
       !cat?.slug ||
       cat.slug.toLowerCase() !== 'ankuendigungen' ||
-      (me?.Role && me.Role.toLowerCase() === 'admin')  // <- konsistent "Role"
+      (me?.role && me.role.toLowerCase() === 'admin')  // <- konsistent "role"
     )
 
 
