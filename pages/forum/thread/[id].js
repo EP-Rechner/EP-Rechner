@@ -134,8 +134,26 @@ const isMod   = isAdmin || role === 'moderator';
 
     return (
       <div key={p.id} style={{ borderTop:'1px solid #eee', padding:'10px 0' }}>
-        <div style={{ fontSize:12, color:'#666' }}>
-          {p.author?.Username || 'Unbekannt'} • {new Date(p.created_at).toLocaleString()}
+        <div style={{ fontSize:12 }}>
+  {p.author?.role?.toLowerCase() === 'admin' && (
+    <span style={{ color: 'red', fontWeight: 'bold' }}>
+      {p.author?.Username} (Admin)
+    </span>
+  )}
+  {p.author?.role?.toLowerCase() === 'moderator' && (
+    <span style={{ color: 'green', fontWeight: 'bold' }}>
+      {p.author?.Username} (Moderator)
+    </span>
+  )}
+  {!['admin','moderator'].includes(p.author?.role?.toLowerCase()) && (
+    <span style={{ color: '#1e2ba0ff', fontWeight: 'bold' }}>
+      {p.author?.Username || 'Unbekannt'}
+    </span>
+  )}
+  {' • '}
+  {new Date(p.created_at).toLocaleString()}
+
+
           {authorRole === 'admin' ? ' • (Admin)' : authorRole === 'moderator' ? ' • (Mod)' : ''}
         </div>
 

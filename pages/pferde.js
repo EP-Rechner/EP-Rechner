@@ -691,7 +691,7 @@ const pageRows = filtered.slice(start, end);
                   <input
                     type="checkbox"
                     checked={allChecked}
-                    onChange={() => toggleSelectAll(pageRowsd, table)}
+                    onChange={() => toggleSelectAll(pageRows, table)}
                     aria-label="Alle auswählen"
                   />
                 </th>

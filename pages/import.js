@@ -65,36 +65,105 @@ export default function ImportTest() {
     }
   }
 
-  const handleSave = async () => {
-    if (!result) return
-    setSaving(true)
-    try {
-      const user = await supabase.auth.getUser()
-      const userId = user.data.user?.id
-      if (!userId) throw new Error('Kein eingeloggter User gefunden')
+  const handleSubmit = async () => {
+  setError(null)
+  setSaving(true)
+  try {
+    // --- Schritt 1: Parsen ---
+    const pp = parsePferdepass(pferdepass)
+    if (!pp.ok) throw new Error(pp.error || 'Pferdepass konnte nicht gelesen werden')
 
-      const row = mapToDbRow(result, userId, {
-        zucht,
-        zuchtziel,
-        notizen,
-        hengstOrt,
-        link
-      })
+    const pk = parsePraeKoer(praekoer)
+    const fg = parseFarbgene(farbgene, { 
+      flaxenManual: flaxen, 
+      rotManual: rot, 
+      pferdepassText: pferdepass 
+    })
 
-      // Automatische Tabellenauswahl
-      const table = result.geschlecht === 'Hengst' ? 'Hengste' : 'Stuten'
+    const dis = parseDisziplinen(
+      { primary: d1 || '-', second: d2 || '-', third: d3 || '-' },
+      { primaryText: t1, secondText: t2, thirdText: t3 },
+      t1 + "\n" + t2 + "\n" + t3
+    )
 
-      const { error: insertError } = await supabase.from(table).insert(row)
-      if (insertError) throw insertError
-
-      alert(`Pferd erfolgreich gespeichert in ${table}!`)
-      setResult(null) // Reset nach dem Speichern
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setSaving(false)
+    const combined = {
+      link: link || null,
+      ...pp.data,
+      praekoer: pk.data || null,
+      farbgene: fg.data || null,
+      disziplinen: dis.data || null
     }
+
+    // --- Schritt 2: Speichern ---
+    const user = await supabase.auth.getUser()
+    const userId = user.data.user?.id
+    if (!userId) throw new Error('Kein eingeloggter User gefunden')
+
+    const row = mapToDbRow(combined, userId, {
+      zucht,
+      zuchtziel,
+      notizen,
+      hengstOrt,
+      link
+    })
+
+    const table = combined.geschlecht === 'Hengst' ? 'Hengste' : 'Stuten'
+
+    const { error: insertError } = await supabase.from(table).insert(row)
+    if (insertError) throw insertError
+
+    alert(`Pferd erfolgreich gespeichert in ${table}!`)
+
+    // --- Formular leeren ---
+    setLink('')
+    setPferdepass('')
+    setPraeKoer('')
+    setFarbgene('')
+    setFlaxen(false)
+    setRot(false)
+    setD1('')
+    setT1('')
+    setD2('')
+    setT2('')
+    setD3('')
+    setT3('')
+    setZucht('')
+    setZuchtziel('')
+    setNotizen('')
+    setHengstOrt('')
+
+  } catch (e) {
+    setError(e.message)
+  } finally {
+    setSaving(false)
   }
+}
+const handleReset = () => {
+  setLink('');
+  setPferdepass('');
+  setPraeKoer('');
+  setFarbgene('');
+  setFlaxen(false);
+  setRot(false);
+
+  // Disziplinen
+  setD1('');
+  setT1('');
+  setD2('');
+  setT2('');
+  setD3('');
+  setT3('');
+
+  // Freie Eingaben
+  setZucht('');
+  setZuchtziel('');
+  setNotizen('');
+  setHengstOrt('');
+
+  setResult(null);
+  setError(null);
+};
+
 
   return (
     <div style={{ padding: 20, maxWidth: 1000, margin: '0 auto' }}>
@@ -183,21 +252,28 @@ export default function ImportTest() {
       <label>Standort Hengst (nur wenn Hengst):</label>
       <input value={hengstOrt} onChange={e=>setHengstOrt(e.target.value)} style={{width:'100%', marginBottom:10}} placeholder="Eigener / ZG / HS / frei" />
 
-      <button onClick={handleParse} style={{ marginTop: 15 }}>Automatisch auslesen</button>
+{error && <p style={{ color:'red' }}>{error}</p>}
 
-      {error && <p style={{ color:'red' }}>{error}</p>}
+<div style={{ display: 'flex', gap: 10, marginTop: 15 }}>
+  <button onClick={handleSubmit} disabled={saving}>
+    {saving ? 'Speichern...' : 'Eintragen'}
+  </button>
 
-      {result && (
-        <>
-          <h2>Vorschau (geparst)</h2>
-          <pre style={{ background:'#111', color:'#0f0', padding:10, borderRadius:6, maxHeight:300, overflow:'auto' }}>
-            {JSON.stringify(result, null, 2)}
-          </pre>
-          <button onClick={handleSave} disabled={saving} style={{ marginTop: 15 }}>
-            {saving ? 'Speichern...' : 'Speichern in Datenbank'}
-          </button>
-        </>
-      )}
-    </div>
-  )
+  <button
+    type="button"
+    onClick={handleReset}
+    style={{
+      background: '#e74c3c',
+      color: '#fff',
+      border: 'none',
+      padding: '8px 12px',
+      borderRadius: 4,
+      cursor: 'pointer'
+    }}
+  >
+    Formular leeren
+  </button>
+</div>
+</div>
+  );
 }
