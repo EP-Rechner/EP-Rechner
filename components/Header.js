@@ -43,36 +43,41 @@ export default function Header() {
     <header style={{ background: '#2c3e50', padding: '10px', color: '#fff' }}>
       <h1>Equinepassion Rechner (BETA)</h1>
       <nav style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-        <Link href="/pferde" style={{ color: '#fff' }}>Pferdeübersicht</Link>
-        <Link href="/forum" style={{ color: '#fff' }}>Forum</Link>
-        <Link href="/import" style={{ color: '#fff' }}>Eintragen</Link>
-        <Link href="/verpaaren" style={{ color: '#fff' }}>Zucht</Link>
-        <Link href="/verpaarungen" style={{ color: '#fff' }}>Gespeicherte Zucht</Link>
 
-        {!session && (
-          <>
-            <Link href="/login" style={{ color: '#fff' }}>Login</Link>
-            <Link href="/register" style={{ color: '#fff' }}>Registrieren</Link>
-          </>
-        )}
+  {/* Nur sichtbar wenn NICHT eingeloggt */}
+  {!session && (
+    <>
+      <Link href="/login" style={{ color: '#fff' }}>Login</Link>
+      <Link href="/register" style={{ color: '#fff' }}>Registrieren</Link>
+    </>
+  )}
 
-        {session && (
-          <button
-            onClick={handleLogout}
-            disabled={loggingOut}
-            style={{
-              background: 'transparent',
-              color: '#fff',
-              border: '1px solid #fff',
-              padding: '4px 10px',
-              borderRadius: 4,
-              cursor: 'pointer'
-            }}
-          >
-            {loggingOut ? 'Abmelden…' : 'Logout'}
-          </button>
-        )}
-      </nav>
+  {/* Nur sichtbar wenn eingeloggt */}
+  {session && (
+    <>
+      <Link href="/pferde" style={{ color: '#fff' }}>Pferdeübersicht</Link>
+      <Link href="/import" style={{ color: '#fff' }}>Eintragen</Link>
+      <Link href="/verpaaren" style={{ color: '#fff' }}>Zucht</Link>
+      <Link href="/verpaarungen" style={{ color: '#fff' }}>Gespeicherte Zucht</Link>
+      <Link href="/forum" style={{ color: '#fff' }}>Forum</Link>
+      <button
+        onClick={handleLogout}
+        disabled={loggingOut}
+        style={{
+          background: 'transparent',
+          color: '#fff',
+          border: '1px solid #fff',
+          padding: '4px 10px',
+          borderRadius: 4,
+          cursor: 'pointer'
+        }}
+      >
+        {loggingOut ? 'Abmelden…' : 'Logout'}
+      </button>
+    </>
+  )}
+</nav>
+
     </header>
   )
 }

@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabaseClient'
-import Link from 'next/link'
 
 export default function Home() {
   const [loading, setLoading] = useState(true)
@@ -70,20 +69,11 @@ export default function Home() {
           </p>
         )}
         <h1>Willkommen beim Equinepassion Rechner</h1>
-        <p>
-          Bitte{' '}
-          <Link href="/login" style={{ color: 'blue', textDecoration: 'underline' }}>
-            einloggen
-          </Link>{' '}
-          oder{' '}
-          <Link href="/register" style={{ color: 'blue', textDecoration: 'underline' }}>
-            registrieren
-          </Link>{' '}
-          , um zu starten.
-        </p>
+        <p>Bitte nutze die Navigation oben, um dich einzuloggen oder zu registrieren.</p>
       </div>
     )
   }
 
+  // Wenn ein User eingeloggt ist, leitet Home direkt nach /pferde weiter.
   return null
 }
