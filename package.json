@@ -6,7 +6,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "next dev",
-    "postbuild": "next-sitemap"
+    "postbuild": "next-sitemap",
     "build": "next build",
     "start": "next start"
   },
