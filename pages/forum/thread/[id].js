@@ -39,7 +39,7 @@ export default function ThreadPage() {
         .select(`
           id, title, created_at, author_id, locked,
           category:forum_categories ( id, slug, name ),
-          author:Users ( Username, Role )
+          author:Users!forum_threads_author_id_fkey ( Username, role )
         `)
         .eq('id', id)
         .single()
@@ -49,7 +49,7 @@ export default function ThreadPage() {
         .from('forum_posts')
         .select(`
           id, content, created_at, author_id,
-          author:Users ( Username, Role )
+          author:Users!forum_posts_author_id_fkey ( Username, role )
         `)
         .eq('thread_id', id)
         .order('created_at', { ascending: true })
@@ -80,7 +80,7 @@ export default function ThreadPage() {
       .from('forum_posts')
       .select(`
         id, content, created_at, author_id,
-        author:Users ( Username, Role )
+        author:Users!forum_posts_author_id_fkey ( Username, role )
       `)
       .eq('thread_id', id)
       .order('created_at', { ascending: true })
