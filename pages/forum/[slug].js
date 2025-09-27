@@ -283,23 +283,27 @@ export default function ForumCategory() {
         <h1>{cat ? cat.name : 'Lade Kategorie…'}</h1>
         {cat?.description && <p className="forum-description">{cat.description}</p>}
 
-        {(isAdmin || isMod) && cat?.slug !== "ankuendigungen" && (
+         {/* Admins in Ankündigungen oder Mods/Admins in allen anderen Kategorien */}
+        {(
+          (isAdmin && cat?.slug === "ankuendigungen") ||
+          ((isAdmin || isMod) && cat?.slug !== "ankuendigungen")
+        ) && (
           <div style={{ margin: "12px 0" }}>
             <select
               defaultValue=""
               onChange={(e) => {
-                const val = e.target.value;
-                if (!val) return;
+                const val = e.target.value
+                if (!val) return
                 if (val === "move") {
-                  const newCategoryId = prompt("Bitte Kategorie-ID eingeben (außer Ankündigungen):");
+                  const newCategoryId = prompt("Bitte Kategorie-ID eingeben:")
                   if (newCategoryId) {
-                    selectedThreads.forEach(id => handleThreadAction(id, "move", newCategoryId));
+                    selectedThreads.forEach(id => handleThreadAction(id, "move", newCategoryId))
                   }
                 } else {
-                  selectedThreads.forEach(id => handleThreadAction(id, val));
+                  selectedThreads.forEach(id => handleThreadAction(id, val))
                 }
-                setSelectedThreads([]); // Auswahl zurücksetzen
-                e.target.value = "";
+                setSelectedThreads([])
+                e.target.value = ""
               }}
             >
               <option value="" disabled>Aktion für ausgewählte Threads wählen…</option>
