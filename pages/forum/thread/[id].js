@@ -346,39 +346,39 @@ export default function ThreadPage() {
                           rows={5}
                           style={{ width: '100%', padding: 8, border: '1px solid #ccc', borderRadius: 6 }}
                         />
-                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              const newText = editText.trim()
-                              if (!newText) return alert('Text darf nicht leer sein.')
-                              const { error } = await supabase
-                                .from('forum_posts')
-                                .update({ content: newText })
-                                .eq('id', p.id)
-                              if (error) return alert(error.message)
+                        {(
+  (isAdmin && thread?.category?.slug === "ankuendigungen") ||
+  ((isAdmin || isMod) && thread?.category?.slug !== "ankuendigungen")
+) && (
+  <div style={{ marginTop: 8 }}>
+    <select
+      defaultValue=""
+      onChange={(e) => {
+        const val = e.target.value;
+        if (val === "move") {
+          const newCategoryId = prompt("Bitte Kategorie-ID eingeben:");
+          if (newCategoryId) handleThreadAction(thread.id, "move", newCategoryId);
+        } else {
+          handleThreadAction(thread.id, val);
+        }
+        e.target.value = "";
+      }}
+    >
+      <option value="" disabled>Aktion wählen…</option>
+      {thread?.is_pinned
+        ? <option value="unpin">Unpin</option>
+        : <option value="pin">Pin</option>}
+      {thread?.locked
+        ? <option value="unlock">Unlock</option>
+        : <option value="lock">Lock</option>}
+      {thread?.done === true && <option value="undone">Nicht erledigt</option>}
+      {thread?.done === false && <option value="done">Erledigt</option>}
+      <option value="move">Verschieben</option>
+      <option value="delete">Löschen</option>
+    </select>
+  </div>
+)}
 
-                              const { data: reload, error: rErr } = await supabase
-                                .from('forum_posts')
-                                .select(`
-                                  id, content, created_at, author_id,
-                                  author:Users!forum_posts_author_id_fkey ( Username, role )
-                                `)
-                                .eq('thread_id', id)
-                                .order('created_at', { ascending: true })
-                              if (rErr) return alert(rErr.message)
-
-                              setPosts(reload || [])
-                              setEditingId(null)
-                              setEditText('')
-                            }}
-                          >
-                            Speichern
-                          </button>
-                          <button type="button" onClick={() => { setEditingId(null); setEditText('') }}>
-                            Abbrechen
-                          </button>
-                        </div>
                       </>
                     ) : (
                       <>
