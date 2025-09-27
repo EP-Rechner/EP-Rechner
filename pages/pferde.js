@@ -609,7 +609,7 @@ const pageRows = filtered.slice(start, end);
               </tbody>
               <tfoot>
                 <tr style={{ backgroundColor: color }}>
-                  <td>{title} – Ende</td>
+                  <td>{title}</td>
                 </tr>
               </tfoot>
             </table>
@@ -634,6 +634,7 @@ const pageRows = filtered.slice(start, end);
     Weiter ▶️
   </button>
 </div>
+
 
           </div>
         </section>
@@ -748,11 +749,33 @@ const pageRows = filtered.slice(start, end);
             </tbody>
             <tfoot>
               <tr style={{ backgroundColor: color }}>
-                <td colSpan={columns.length + 2}>{title} – Ende</td>
+                <td colSpan={columns.length + 2}>{title}</td>
               </tr>
             </tfoot>
           </table>
         </div>
+        <div className="pagination">
+  <button
+    className="btn"
+    onClick={() => setPage(Math.max(1, currentPage - 1))}
+    disabled={currentPage <= 1}
+  >
+    ◀️ Zurück
+  </button>
+
+  <span className="page-indicator">
+    Seite {currentPage} / {totalPages} — {totalRows} Einträge
+  </span>
+
+  <button
+    className="btn"
+    onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+    disabled={currentPage >= totalPages}
+  >
+    Weiter ▶️
+  </button>
+</div>
+
       </section>
     );
   };

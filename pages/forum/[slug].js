@@ -12,6 +12,7 @@ export default function ForumCategory() {
   const [allCats, setAllCats] = useState([])
   const [threads, setThreads] = useState([])
   const [session, setSession] = useState(null)
+  const [selectedThreads, setSelectedThreads] = useState([]);
   const [me, setMe] = useState(null) // Users row (Username, role)
 
   // Form state
@@ -25,63 +26,102 @@ export default function ForumCategory() {
   const isMod   = isAdmin || role === 'moderator'
 
   // Lade User + Session
-  useEffect(() => {
-    const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      setSession(session || null)
-      if (session?.user) {
-        const { data: meRow } = await supabase
-          .from('Users')
-          .select('Username, role')
-          .eq('id', session.user.id)
-          .single()
-        setMe(meRow || null)
-      }
+useEffect(() => {
+  const init = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    setSession(session || null)
+    if (session?.user) {
+      const { data: meRow } = await supabase
+        .from('Users')
+        .select('Username, role')
+        .eq('id', session.user.id)
+        .single()
+      setMe(meRow || null)
     }
-    init()
-  }, [])
+  }
+  init()
+}, [])
 
   // Lade Kategorie + Threads
-  useEffect(() => {
-    if (!slug) return
-    const load = async () => {
-      const { data: category, error: catErr } = await supabase
-        .from('forum_categories')
-        .select('*')
-        .eq('slug', slug)
-        .single()
+useEffect(() => {
+  if (!slug) return;
 
-      if (catErr) {
-        console.error(catErr)
-        setCat(null)
-        setThreads([])
-        return
-      }
+  const load = async () => {
+    const { data: category, error: catErr } = await supabase
+      .from('forum_categories')
+      .select('*')
+      .eq('slug', slug)
+      .single();
 
-      const { data: cats } = await supabase
-        .from('forum_categories')
-        .select('id, name, slug')
-        .order('name', { ascending: true })
-      setAllCats(cats || [])
-
-      setCat(category || null)
-
-      if (category) {
-        const { data: rows, error: thrErr } = await supabase
-          .from('forum_threads')
-          .select(`
-            id, title, created_at, author_id, locked, is_pinned,
-            author:Users!forum_threads_author_id_fkey ( Username, role )
-          `)
-          .eq('category_id', category.id)
-          .order('is_pinned', { ascending: false })
-          .order('created_at', { ascending: false })
-        if (thrErr) console.error(thrErr)
-        setThreads(rows || [])
-      }
+    if (catErr) {
+      console.error(catErr);
+      setCat(null);
+      setThreads([]);
+      return;
     }
-    load()
-  }, [slug])
+
+    setCat(category || null);
+
+    const { data: rows, error: thrErr } = await supabase
+      .from('forum_threads')
+      .select(`
+        id, title, created_at, author_id, locked, is_pinned, done,
+        author:Users!forum_threads_author_id_fkey ( Username, role )
+      `)
+      .eq('category_id', category.id);
+
+    if (thrErr) {
+      console.error(thrErr);
+      return;
+    }
+
+    const { data: stats } = await supabase
+      .from('forum_thread_stats')
+      .select('*');
+
+    const statMap = new Map(stats?.map(s => [s.thread_id, s]));
+
+    // ✅ Reads nur laden, wenn eingeloggt
+    let readMap = new Map();
+    if (session?.user) {
+      const { data: reads } = await supabase
+        .from("forum_thread_reads")
+        .select("thread_id, last_read_at")
+        .eq("user_id", session.user.id);
+
+      readMap = new Map(reads?.map(r => [r.thread_id, r.last_read_at]));
+    }
+
+    // Threads mit Stats und isNew
+    const merged = (rows || []).map(r => {
+      const stats = statMap.get(r.id) || {};
+      const lastRead = readMap.get(r.id);
+      const lastActivity = new Date(stats.last_post_at || r.created_at);
+      const isNew = !lastRead || new Date(lastRead) < lastActivity;
+
+      return {
+        ...r,
+        stats,
+        isNew
+      };
+    });
+
+    // Sortierung
+    merged.sort((a, b) => {
+      if (a.is_pinned && !b.is_pinned) return -1;
+      if (!a.is_pinned && b.is_pinned) return 1;
+
+      const dateA = new Date(a.stats.last_post_at || a.created_at);
+      const dateB = new Date(b.stats.last_post_at || b.created_at);
+      return dateB - dateA;
+    });
+
+    setThreads(merged);
+  };
+
+  load();
+}, [slug, session]); // ← session drin lassen
+
 
   // Berechtigung Threads zu erstellen
   const canCreateInThisCategory =
@@ -181,88 +221,248 @@ export default function ForumCategory() {
     setThreads(prev => prev.filter(t => t.id !== threadId))
   }
 
-  return (
-    <div style={{ padding: 20 }}>
+  // Thread-Action Dropdown
+  const handleThreadAction = async (threadId, action, newCategoryId = null) => {
+    try {
+      if (action === "pin") {
+        await supabase.from("forum_threads").update({ is_pinned: true }).eq("id", threadId);
+      }
+      if (action === "unpin") {
+        await supabase.from("forum_threads").update({ is_pinned: false }).eq("id", threadId);
+      }
+      if (action === "lock") {
+        await supabase.from("forum_threads").update({ locked: true }).eq("id", threadId);
+      }
+      if (action === "unlock") {
+        await supabase.from("forum_threads").update({ locked: false }).eq("id", threadId);
+      }
+      if (action === "done") {
+        await supabase.from("forum_threads").update({ done: true }).eq("id", threadId);
+      }
+      if (action === "undone") {
+        await supabase.from("forum_threads").update({ done: false }).eq("id", threadId);
+      }
+
+      if (action === "delete") {
+        await supabase.from("forum_threads").delete().eq("id", threadId);
+        setThreads(prev => prev.filter(t => t.id !== threadId));
+        return;
+      }
+      if (action === "move" && newCategoryId) {
+        await supabase.from("forum_threads").update({ category_id: newCategoryId }).eq("id", threadId);
+        setThreads(prev => prev.filter(t => t.id !== threadId));
+        return;
+      }
+
+      // Reload nach Update
+      const { data: updated, error } = await supabase
+        .from("forum_threads")
+        .select(`
+          id, title, created_at, author_id, locked, is_pinned, done,
+          author:Users!forum_threads_author_id_fkey ( Username, role )
+        `)
+        .eq("category_id", cat.id);
+
+      if (error) throw error;
+      setThreads(updated || []);
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+
+       return (
+  <div style={{ padding: 20 }}>
+    <div className="forum-wrapper">
       <h1>{cat ? cat.name : 'Lade Kategorie…'}</h1>
-      {cat?.description && <p style={{ color:'#666' }}>{cat.description}</p>}
+       {cat?.description && <p className="forum-description">{cat.description}</p>}
 
-      {/* Threads-Liste */}
-      <div style={{ margin: '16px 0' }}>
-        {threads.map(t => (
-          <div key={t.id} style={{ padding: '8px 0', borderBottom: '1px solid #eee' }}>
-            <Link href={`/forum/thread/${t.id}`} style={{ color:'#2563eb', fontWeight: 600 }}>
-              {t.title}
-            </Link>
-            <div style={{ fontSize: 12, color:'#666' }}>
-              von {t.author?.Username || 'Unbekannt'} • {new Date(t.created_at).toLocaleString()}
-              {t.locked ? ' • 🔒 gesperrt' : ''}
-              {t.is_pinned ? ' • 📌 gepinnt' : ''}
-            </div>
+       {(isAdmin || isMod) && cat?.slug !== "ankuendigungen" && (
+  <div style={{ margin: "12px 0" }}>
+    <select
+      defaultValue=""
+      onChange={(e) => {
+        const val = e.target.value;
+        if (!val) return;
+        if (val === "move") {
+          const newCategoryId = prompt("Bitte Kategorie-ID eingeben (außer Ankündigungen):");
+          if (newCategoryId) {
+            selectedThreads.forEach(id => handleThreadAction(id, "move", newCategoryId));
+          }
+        } else {
+          selectedThreads.forEach(id => handleThreadAction(id, val));
+        }
+        setSelectedThreads([]); // Auswahl zurücksetzen
+        e.target.value = "";
+      }}
+    >
+      <option value="" disabled>Aktion für ausgewählte Threads wählen…</option>
+      <option value="pin">Pin</option>
+      <option value="unpin">Unpin</option>
+      <option value="lock">Lock</option>
+      <option value="unlock">Unlock</option>
+      <option value="done">Erledigt</option>
+      <option value="undone">Nicht erledigt</option>
+      <option value="move">Verschieben</option>
+      <option value="delete">Löschen</option>
+    </select>
+    <span style={{ marginLeft: 8, fontSize: 13, color: "#666" }}>
+      {selectedThreads.length} Thread(s) ausgewählt
+    </span>
+  </div>
+)}
 
-            {/* Admin/Mod-Leiste */}
-            {(isAdmin || isMod) && (
-              <div style={{ display:'flex', gap:8, marginTop:6 }}>
-                {isAdmin && (
-                  <button onClick={() => togglePin(t)}>
-                    {t.is_pinned ? 'Unpin' : 'Pin'}
-                  </button>
-                )}
+      {/* Threads-Tabelle */}
+      <table className="forum-table">
+  <thead>
+    <tr>
+      <th style={{ width: 40, textAlign: "center" }}>✔</th>
+      <th style={{ width: "65%" }}>Thread</th>
+      <th style={{ width: 80, textAlign: "right" }}>Kommentare</th>
+      <th style={{ width: 160, textAlign: "right" }}>Letzter Beitrag</th>
+    </tr>
+  </thead>
+  <tbody>
+    {threads.length === 0 && (
+      <tr>
+        <td colSpan={4} style={{ textAlign: "center", color: "#666" }}>
+          Noch keine Threads.
+        </td>
+      </tr>
+    )}
+    {threads.map(t => (
+      <tr key={t.id}>
+        {/* Checkbox-Spalte */}
+        <td style={{ textAlign: "center" }}>
+          <input
+            type="checkbox"
+            checked={selectedThreads.includes(t.id)}
+            onChange={(e) => {
+              if (e.target.checked) {
+                setSelectedThreads([...selectedThreads, t.id]);
+              } else {
+                setSelectedThreads(selectedThreads.filter(id => id !== t.id));
+              }
+            }}
+          />
+        </td>
 
-                <select
-                  defaultValue=""
-                  onChange={(e) => {
-                    const val = e.target.value
-                    if (val) moveThread(t.id, val)
-                    e.target.value = ""
-                  }}
-                  style={{ padding:4 }}
-                >
-                  <option value="" disabled>In Kategorie verschieben…</option>
-                  {allCats
-                    .filter(c => c.id !== cat?.id)
-                    .map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))
-                  }
-                </select>
+        {/* Thread-Titel */}
+        <td>
+          <Link href={`/forum/thread/${t.id}`}>
+  {t.isNew && <span style={{ color: 'orange', fontWeight: 'bold', marginRight: 6 }}>NEU</span>}
+  {t.is_pinned && <span style={{ marginRight: 4 }}>📌</span>}
+  {t.locked && <span style={{ marginRight: 4 }}>🔒</span>}
+  {t.done && <span style={{ color: 'green', marginRight: 4 }}>✅</span>}
+  {t.title}
+</Link>
 
-                <button onClick={() => deleteThread(t.id)}>Löschen</button>
-              </div>
-            )}
-          </div>
-        ))}
-        {threads.length === 0 && <p>Noch keine Threads.</p>}
-      </div>
+        </td>
 
-      {/* Neuer Thread */}
-      <div style={{ marginTop: 24 }}>
-        <h2>Neuen Thread erstellen</h2>
-        {session?.user && !canCreateInThisCategory && cat?.slug?.toLowerCase() === 'ankuendigungen' && (
-          <p>Nur Admins dürfen hier neue Threads erstellen.</p>
-        )}
+        {/* Kommentaranzahl */}
+        <td style={{ textAlign: "right" }}>
+          {t.stats?.comment_count || 0}
+        </td>
 
-        {session?.user && canCreateInThisCategory && (
-          <form onSubmit={createThread} style={{ display:'grid', gap: 8, maxWidth: 640 }}>
-            <input
-              value={title}
-              onChange={(e)=>setTitle(e.target.value)}
-              placeholder="Titel"
-              required
-              style={{ padding: 8, border:'1px solid #ccc', borderRadius: 6 }}
-            />
-            <textarea
-              value={content}
-              onChange={(e)=>setContent(e.target.value)}
-              placeholder="Inhalt"
-              rows={6}
-              required
-              style={{ padding: 8, border:'1px solid #ccc', borderRadius: 6 }}
-            />
-            <button type="submit" style={{ padding:'8px 12px' }}>Thread erstellen</button>
-            {errorMsg && <p style={{ color:'red' }}>{errorMsg}</p>}
-          </form>
-        )}
-      </div>
+        {/* Letzter Beitrag */}
+        <td style={{ textAlign: "right" }}>
+          {t.stats?.last_post_at ? (
+            <>
+              {new Date(t.stats.last_post_at).toLocaleString()}
+              {" · von "}
+              {t.stats.last_post_role?.toLowerCase() === "admin" && (
+                <span style={{ color: "red", fontWeight: "bold" }}>
+                  {t.stats.last_post_user} (Admin)
+                </span>
+              )}
+              {t.stats.last_post_role?.toLowerCase() === "moderator" && (
+                <span style={{ color: "green", fontWeight: "bold" }}>
+                  {t.stats.last_post_user} (Moderator)
+                </span>
+              )}
+              {!["admin","moderator"].includes(t.stats.last_post_role?.toLowerCase()) && (
+                <span style={{ color: "#1e2ba0ff", fontWeight: "bold" }}>
+                  {t.stats.last_post_user || "Unbekannt"}
+                </span>
+              )}
+            </>
+          ) : "—"}
+        </td>
+      </tr>
+    ))}
+  </tbody>
+</table>
+
+      <h2>Neuen Thread erstellen</h2>
+      {session?.user && !canCreateInThisCategory && cat?.slug?.toLowerCase() === 'ankuendigungen' &&(
+        <p>Nur Admins dürfen hier neue Threads erstellen.</p>
+      )}
+      {session?.user && canCreateInThisCategory && (
+    <form onSubmit={createThread} style={{ display:'grid', gap: 8 }}>
+      <input
+        value={title}
+        onChange={(e)=>setTitle(e.target.value)}
+        placeholder="Titel"
+        required
+        style={{ padding: 8, border:'1px solid #ccc', borderRadius: 6 }}
+      />
+      <textarea
+        value={content}
+        onChange={(e)=>setContent(e.target.value)}
+        placeholder="Inhalt"
+        rows={6}
+        required
+        style={{ padding: 8, border:'1px solid #ccc', borderRadius: 6 }}
+      />
+      <button type="submit" style={{ padding:'8px 12px' }}>Thread erstellen</button>
+      {errorMsg && <p style={{ color:'red' }}>{errorMsg}</p>}
+    </form>
+  )}
+    </div>
+
+      <style jsx>{`
+        .forum-wrapper {
+          max-width:1000px;
+          margin: 0 auto;
+          padding: 0 16px;
+          }
+        
+        .forum-wrapper h1 {
+          margin-bottom: 8px;
+          font-size: 22px;
+          }
+
+        .forum-description {
+          color: #666;
+          margin-bottom: 16px;
+        }
+
+        .forum-table {
+          width: 100%;
+          margin: 0 auto;
+          border-collapse: collapse;
+          margin-top: 16px;
+          font-size: 14px;
+          background: #fff;
+        }
+        .forum-table th,
+        .forum-table td {
+          border: 1px solid #e5e7eb;
+          padding: 10px 12px;
+          text-align: left;
+          vertical-align: top;
+        }
+        .forum-table thead th {
+          background: #f4f6f9;
+          font-weight: 600;
+        }
+        .forum-table tbody tr:nth-child(even) {
+          background: #fafafa;
+        }
+        .forum-table tbody tr:hover {
+          background: #f1f5f9;
+        }
+      `}</style>
     </div>
   )
 }

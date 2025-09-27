@@ -43,14 +43,14 @@ const isMod   = isAdmin || role === 'moderator';
     if (!id) return
     const load = async () => {
       const { data: t } = await supabase
-        .from('forum_threads')
-        .select(`
-          id, title, created_at, author_id, locked,
-          category:forum_categories ( id, slug, name ),
-          author:Users!forum_threads_author_id_fkey ( Username, role )
-        `)
-        .eq('id', id)
-        .single()
+  .from('forum_threads')
+  .select(`
+    id, title, created_at, author_id, locked, done,
+    category:forum_categories ( id, slug, name ),
+    author:Users!forum_threads_author_id_fkey ( Username, role )
+  `)
+  .eq('id', id)
+  .single()
       setThread(t || null)
 
       const { data: p } = await supabase
@@ -64,7 +64,26 @@ const isMod   = isAdmin || role === 'moderator';
       setPosts(p || [])
     }
     load()
-  }, [id])
+  }, [id, session])
+
+  useEffect(() => {
+  if (!id || !session?.user) return;
+
+  const markAsRead = async () => {
+    await supabase
+      .from("forum_thread_reads")
+      .upsert({
+        user_id: session.user.id,
+        thread_id: thread.id,
+        last_read_at: new Date().toISOString()
+      }, { onConflict: 'user_id, thread_id' });
+  };
+
+  if (thread && posts.length >= 0) {
+  markAsRead();
+  }
+}, [id, session?.user, thread, posts.length]);
+
 
   const addComment = async (e) => {
     e.preventDefault()
@@ -93,7 +112,57 @@ const isMod   = isAdmin || role === 'moderator';
       .eq('thread_id', id)
       .order('created_at', { ascending: true })
     setPosts(p || [])
+
+    // Nach setPosts(p || [])
+if (session?.user && thread) {
+  await supabase
+    .from("forum_thread_reads")
+    .upsert({
+      user_id: session.user.id,
+      thread_id: thread.id,
+      last_read_at: new Date().toISOString()
+    }, { onConflict: 'user_id, thread_id' });
+}
   }
+
+  // Thread-Action Dropdown
+  const handleThreadAction = async (threadId, action, extra) => {
+  try {
+    if (action === "pin") {
+      await supabase.from("forum_threads").update({ is_pinned: true }).eq("id", threadId);
+    } else if (action === "unpin") {
+      await supabase.from("forum_threads").update({ is_pinned: false }).eq("id", threadId);
+    } else if (action === "lock") {
+      await supabase.from("forum_threads").update({ locked: true }).eq("id", threadId);
+    } else if (action === "unlock") {
+      await supabase.from("forum_threads").update({ locked: false }).eq("id", threadId);
+    } else if (action === "done") {
+      await supabase.from("forum_threads").update({ done: true }).eq("id", threadId);
+    } else if (action === "undone") {
+      await supabase.from("forum_threads").update({ done: false }).eq("id", threadId);
+    } else if (action === "move") {
+      await supabase.from("forum_threads").update({ category_id: extra }).eq("id", threadId);
+    } else if (action === "delete") {
+      await supabase.from("forum_threads").delete().eq("id", threadId);
+    }
+
+    // Reload nach Aktion
+    const { data: updated } = await supabase
+      .from("forum_threads")
+      .select(`
+        id, title, created_at, author_id, locked, is_pinned, done,
+        category:forum_categories ( id, slug, name ),
+        author:Users!forum_threads_author_id_fkey ( Username, role )
+      `)
+      .eq("id", threadId)
+      .single();
+
+    setThread(updated || null);
+  } catch (err) {
+    alert(err.message);
+  }
+};
+
 
   return (
     <div style={{ padding: 20 }}>
@@ -109,13 +178,107 @@ const isMod   = isAdmin || role === 'moderator';
         )}
       </div>
 
-      <h1>{thread?.title || 'Lade…'}</h1>
+      <h1>
+  {thread?.done && <span style={{ color: 'green', marginRight: 6 }}>✅</span>}
+  {thread?.title || 'Lade…'}
+</h1>
+
+{(isAdmin || isMod) && thread?.category?.slug !== "ankuendigungen" && (
+  <div style={{ marginTop: 8 }}>
+    <select
+      defaultValue=""
+      onChange={(e) => {
+        const val = e.target.value;
+        if (val === "move") {
+          const newCategoryId = prompt("Bitte Kategorie-ID eingeben (außer Ankündigungen):");
+          if (newCategoryId) handleThreadAction(thread.id, "move", newCategoryId);
+        } else {
+          handleThreadAction(thread.id, val);
+        }
+        e.target.value = "";
+      }}
+    >
+      <option value="" disabled>Aktion wählen…</option>
+      {thread?.is_pinned
+        ? <option value="unpin">Unpin</option>
+        : <option value="pin">Pin</option>}
+      {thread?.locked
+        ? <option value="unlock">Unlock</option>
+        : <option value="lock">Lock</option>}
+      {thread?.done === true && <option value="undone">Nicht erledigt</option>}
+      {thread?.done === false && <option value="done">Erledigt</option>}
+      <option value="move">Verschieben</option>
+      <option value="delete">Löschen</option>
+    </select>
+  </div>
+)}
+
+
       {thread && (
-        <div style={{ color:'#666', marginBottom: 16, fontSize: 13 }}>
-          von {thread.author?.Username || 'Unbekannt'} • {new Date(thread.created_at).toLocaleString()}
-          {thread.locked ? ' • 🔒 gesperrt' : ''}
-        </div>
-      )}
+  <div style={{ marginBottom: 12 }}>
+    {/* ✅ Erledigt anzeigen */}
+    {thread.done && (
+      <span style={{ color: 'green', fontWeight: 'bold', marginRight: 8 }}>✅ Erledigt</span>
+    )}
+
+    {/* ✅ Button nur für Admin/Mod in Bugs & Wünsche, oder Owner in Fragen & Probleme */}
+    {session?.user && (
+  <>
+    {!thread.done ? (
+      (
+        (['bugs','bugs-fehler','wuensche','wuensche-anregungen'].includes(thread.category.slug) && (isAdmin || role === 'moderator'))
+        ||
+        (thread.category.slug === 'fragen-probleme' && session.user.id === thread.author_id)
+      ) && (
+        <button
+          onClick={async () => {
+            const { error } = await supabase
+              .from('forum_threads')
+              .update({ done: true })
+              .eq('id', thread.id);
+            if (error) return alert(error.message);
+            setThread({ ...thread, done: true });
+          }}
+          style={{
+            background:'#22c55e',
+            color:'#fff',
+            border:'none',
+            padding:'6px 10px',
+            borderRadius:4
+          }}
+        >
+          Als erledigt markieren
+        </button>
+      )
+    ) : (
+      (isAdmin || isMod) && (
+        <button
+          onClick={async () => {
+            const { error } = await supabase
+              .from('forum_threads')
+              .update({ done: false })
+              .eq('id', thread.id);
+            if (error) return alert(error.message);
+            setThread({ ...thread, done: false });
+          }}
+          style={{
+            background:'#ef4444',
+            color:'#fff',
+            border:'none',
+            padding:'6px 10px',
+            borderRadius:4
+          }}
+        >
+          Als nicht erledigt markieren
+        </button>
+      )
+    )}
+  </>
+)}
+
+  </div>
+)}
+
 
       {/* Posts */}
 <div style={{ margin: '12px 0 24px' }}>
