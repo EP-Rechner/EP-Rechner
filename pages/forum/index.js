@@ -120,13 +120,6 @@ export default function ForumIndex() {
       <div className="forum-wrapper">
         <h1>Forum</h1>
 
-        <p className="forum-description">
-          Wähle eine Kategorie. <br />
-          {session?.user
-            ? '„NEU“ erscheint, wenn es in der Kategorie neue Threads oder Kommentare seit deinem letzten Besuch gibt.'
-            : 'Melde dich an, um „NEU“ pro Kategorie zu sehen.'}
-        </p>
-
         <table className="forum-table">
           <thead>
             <tr>
