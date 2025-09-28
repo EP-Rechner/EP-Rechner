@@ -19,11 +19,16 @@ export default function Login() {
     })
 
     if (data.user) {
-    await supabase
-  .from("Users")
-  .update({ last_login: new Date().toISOString() })
-  .eq("id", data.user.id);
-    }
+  const { error: updateError } = await supabase
+    .from("Users")
+    .update({ last_login: new Date().toISOString() })
+    .eq("id", data.user.id);
+
+  if (updateError) {
+    console.error("Update last_login failed:", updateError);
+  }
+}
+
 
 
     if (error) {
