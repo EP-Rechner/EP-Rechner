@@ -18,16 +18,6 @@ export default function Login() {
       password,
     })
 
-    if (data.user) {
-     await supabase
-    .from("Users")
-    .update({ last_login: new Date().toISOString() })
-    .eq("id", data.user.id);
-  }
-
-
-
-
     if (error) {
       setErrorMsg(error.message)
       return
