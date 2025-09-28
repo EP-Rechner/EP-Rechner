@@ -326,36 +326,42 @@ export default function ForumCategory() {
         <table className="forum-table">
           <thead>
             <tr>
-              <th style={{ width: 40, textAlign: "center" }}>✔</th>
-              <th style={{ width: "65%" }}>Thread</th>
-              <th style={{ width: 80, textAlign: "right" }}>Kommentare</th>
-              <th style={{ width: 160, textAlign: "right" }}>Letzter Beitrag</th>
-            </tr>
+  {(isAdmin || isMod) && (
+    <th style={{ width: 40, textAlign: "center" }}>✔</th>
+  )}
+  <th style={{ width: "65%" }}>Thread</th>
+  <th style={{ width: 80, textAlign: "right" }}>Kommentare</th>
+  <th style={{ width: 160, textAlign: "right" }}>Letzter Beitrag</th>
+</tr>
+
           </thead>
           <tbody>
             {threads.length === 0 && (
               <tr>
-                <td colSpan={4} style={{ textAlign: "center", color: "#666" }}>
-                  Noch keine Threads.
-                </td>
+                <td colSpan={isAdmin || isMod ? 4 : 3} style={{ textAlign: "center", color: "#666" }}>
+  Noch keine Threads.
+</td>
+
               </tr>
             )}
             {threads.map(t => (
               <tr key={t.id}>
-                {/* Checkbox-Spalte */}
-                <td style={{ textAlign: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedThreads.includes(t.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedThreads([...selectedThreads, t.id]);
-                      } else {
-                        setSelectedThreads(selectedThreads.filter(id => id !== t.id));
-                      }
-                    }}
-                  />
-                </td>
+  {(isAdmin || isMod) && (
+    <td style={{ textAlign: "center" }}>
+      <input
+        type="checkbox"
+        checked={selectedThreads.includes(t.id)}
+        onChange={(e) => {
+          if (e.target.checked) {
+            setSelectedThreads([...selectedThreads, t.id]);
+          } else {
+            setSelectedThreads(selectedThreads.filter(id => id !== t.id));
+          }
+        }}
+      />
+    </td>
+  )}
+
 
                 {/* Thread-Titel */}
                 <td>
@@ -369,7 +375,7 @@ export default function ForumCategory() {
                 </td>
 
                 {/* Kommentaranzahl */}
-                <td style={{ textAlign: "right" }}>
+                <td style={{ textAlign: "center" }}>
                   {t.stats?.comment_count || 0}
                 </td>
 

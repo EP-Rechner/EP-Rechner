@@ -10,9 +10,9 @@ export default function ForumIndex() {
 
   const role = (me?.role || '').toLowerCase();
   const isAdmin = role === 'admin';
-  const isMod = isAdmin || role === 'moderator';
+  const isMod   = isAdmin || role === 'moderator';
 
-  // Session + User laden (gleiches Muster wie in deinen anderen Seiten)
+  // Session + User laden
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -29,7 +29,7 @@ export default function ForumIndex() {
     init();
   }, []);
 
-  // Kategorien + "NEU"-Status berechnen
+  // Kategorien + Stats laden
   useEffect(() => {
     const load = async () => {
       // Kategorien
@@ -44,29 +44,22 @@ export default function ForumIndex() {
         return;
       }
 
-      // Alle Threads (nur IDs, Kategorie & created_at)
-      const { data: threads, error: thrErr } = await supabase
-        .from('forum_threads')
-        .select('id, category_id, created_at');
-
-      if (thrErr) {
-        console.error(thrErr);
-        setCats(categories || []);
-        return;
-      }
-
-      // Stats pro Thread (für last_post_at)
+      // Stats pro Thread
       const { data: stats, error: statErr } = await supabase
         .from('forum_thread_stats')
-        .select('thread_id, last_post_at');
+        .select('*');
 
       if (statErr) {
         console.error(statErr);
       }
 
-      const statsMap = new Map((stats || []).map(s => [s.thread_id, s.last_post_at || null]));
+      // Threads laden (für Zuordnung zu Kategorien + created_at)
+      const { data: threads, error: thrErr } = await supabase
+        .from('forum_threads')
+        .select('id, category_id, created_at');
+      if (thrErr) console.error(thrErr);
 
-      // Reads des eingeloggten Users
+      // Reads des Users (für NEU)
       let readMap = new Map();
       if (session?.user) {
         const { data: reads, error: readErr } = await supabase
@@ -81,32 +74,53 @@ export default function ForumIndex() {
         }
       }
 
-      // Threads -> letzte Aktivität (letzter Post oder Erstellung)
-      const activityByThread = new Map(
-        (threads || []).map(t => {
-          const lastPost = statsMap.get(t.id);
-          const lastActivity = new Date(lastPost || t.created_at).toISOString();
-          return [t.id, { category_id: t.category_id, lastActivity }];
-        })
-      );
+      // Threads -> letzte Aktivität + "NEU"-Check
+      const statsMap = new Map((stats || []).map(s => [s.thread_id, s]));
+      const categoryInfo = {};
 
-      // Pro Kategorie: gibt es mind. einen "neuen" Thread?
-      // "Neu" = kein Read vorhanden ODER last_read_at < lastActivity
-      const categoryHasNew = new Map();
       for (const t of threads || []) {
-        const activity = activityByThread.get(t.id);
-        if (!activity) continue;
+        const s = statsMap.get(t.id);
+        const lastActivity = new Date(s?.last_post_at || t.created_at);
 
+        // Kategorie initialisieren
+        if (!categoryInfo[t.category_id]) {
+          categoryInfo[t.category_id] = {
+            count: 0,
+            lastActivity: null,
+            lastUser: null,
+            lastRole: null,
+          };
+        }
+
+        // Anzahl erhöhen
+        categoryInfo[t.category_id].count++;
+
+        // Letzter Beitrag
+        if (
+          !categoryInfo[t.category_id].lastActivity ||
+          lastActivity > categoryInfo[t.category_id].lastActivity
+        ) {
+          categoryInfo[t.category_id].lastActivity = lastActivity;
+          categoryInfo[t.category_id].lastUser = s?.last_post_user || null;
+          categoryInfo[t.category_id].lastRole = s?.last_post_role || null;
+        }
+
+        // NEU prüfen
         const lastRead = readMap.get(t.id);
-        const isNew = !lastRead || new Date(lastRead) < new Date(activity.lastActivity);
+        const isNew = !lastRead || new Date(lastRead) < lastActivity;
         if (isNew) {
-          categoryHasNew.set(t.category_id, true); // mind. einer reicht
+          categoryInfo[t.category_id].isNew = true;
         }
       }
 
+      // Kategorien zusammenbauen
       const merged = (categories || []).map(c => ({
         ...c,
-        isNewCategory: !!categoryHasNew.get(c.id),
+        threadCount: categoryInfo[c.id]?.count || 0,
+        lastActivity: categoryInfo[c.id]?.lastActivity || null,
+        lastUser: categoryInfo[c.id]?.lastUser || null,
+        lastRole: categoryInfo[c.id]?.lastRole || null,
+        isNewCategory: categoryInfo[c.id]?.isNew || false,
       }));
 
       setCats(merged);
@@ -123,20 +137,23 @@ export default function ForumIndex() {
         <table className="forum-table">
           <thead>
             <tr>
-              <th style={{ width: '60%' }}>Kategorie</th>
-              <th>Beschreibung</th>
+              <th style={{ width: '35%' }}>Kategorie</th>
+              <th style={{ width: '35%' }}>Beschreibung</th>
+              <th style={{ width: 80, textAlign: "right" }}>Threads</th>
+              <th style={{ width: 200, textAlign: "right" }}>Letzter Beitrag</th>
             </tr>
           </thead>
           <tbody>
             {cats.length === 0 && (
               <tr>
-                <td colSpan={2} style={{ textAlign: 'center', color: '#666' }}>
+                <td colSpan={4} style={{ textAlign: 'center', color: '#666' }}>
                   Keine Kategorien vorhanden.
                 </td>
               </tr>
             )}
             {cats.map(c => (
               <tr key={c.id}>
+                {/* Kategorie */}
                 <td>
                   <Link href={`/forum/${c.slug}`}>
                     {c.isNewCategory && session?.user && (
@@ -145,8 +162,39 @@ export default function ForumIndex() {
                     {c.name}
                   </Link>
                 </td>
+
+                {/* Beschreibung */}
                 <td style={{ color: '#555' }}>
                   {c.description || '—'}
+                </td>
+
+                {/* Anzahl Threads */}
+                <td style={{ textAlign: "center" }}>
+                  {c.threadCount}
+                </td>
+
+                {/* Letzter Beitrag */}
+                <td style={{ textAlign: "right" }}>
+                  {c.lastActivity ? (
+                    <>
+                      {c.lastActivity.toLocaleString()} {" · von "}
+                      {c.lastRole?.toLowerCase() === "admin" && (
+                        <span style={{ color: "red", fontWeight: "bold" }}>
+                          {c.lastUser} (Admin)
+                        </span>
+                      )}
+                      {c.lastRole?.toLowerCase() === "moderator" && (
+                        <span style={{ color: "green", fontWeight: "bold" }}>
+                          {c.lastUser} (Moderator)
+                        </span>
+                      )}
+                      {!["admin","moderator"].includes(c.lastRole?.toLowerCase()) && (
+                        <span style={{ color: "#1e2ba0ff", fontWeight: "bold" }}>
+                          {c.lastUser || "Unbekannt"}
+                        </span>
+                      )}
+                    </>
+                  ) : "—"}
                 </td>
               </tr>
             ))}
@@ -163,10 +211,6 @@ export default function ForumIndex() {
         .forum-wrapper h1 {
           margin-bottom: 8px;
           font-size: 22px;
-        }
-        .forum-description {
-          color: #666;
-          margin-bottom: 16px;
         }
         .forum-table {
           width: 100%;

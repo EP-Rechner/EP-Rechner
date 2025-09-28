@@ -68,14 +68,11 @@ export default function ThreadPage() {
     load()
   }, [id, session])
 
-  // Beim Öffnen (und nach Post-Reload) als gelesen markieren
+  // Als gelesen markieren
   useEffect(() => {
     if (!id || !session?.user || !thread) return
     const markAsRead = async () => {
       try {
-        // Optional: für Debugging
-        // console.log('Markiere Thread als gelesen:', session.user.id, thread.id)
-
         const { error } = await supabase
           .from('forum_thread_reads')
           .upsert({
@@ -92,7 +89,6 @@ export default function ThreadPage() {
       }
     }
     markAsRead()
-    // posts.length in die deps, damit nach neuem Kommentar wieder als gelesen markiert wird
   }, [id, session?.user, thread, posts.length])
 
   // Kommentar hinzufügen
@@ -114,7 +110,6 @@ export default function ThreadPage() {
 
     setContent('')
 
-    // Posts neu laden
     const { data: p, error: rErr } = await supabase
       .from('forum_posts')
       .select(`
@@ -125,7 +120,6 @@ export default function ThreadPage() {
       .order('created_at', { ascending: true })
     if (!rErr) setPosts(p || [])
 
-    // Nach dem Schreiben als gelesen markieren (damit „NEU“ in der Liste sicher weg ist)
     if (session?.user && thread) {
       await supabase
         .from('forum_thread_reads')
@@ -137,7 +131,7 @@ export default function ThreadPage() {
     }
   }
 
-  // Thread-Aktions-Dropdown (Admin/Mod)
+  // Thread-Aktion (nur Admin/Mod)
   const handleThreadAction = async (threadId, action, extra) => {
     try {
       if (action === 'pin')    await supabase.from('forum_threads').update({ is_pinned: true  }).eq('id', threadId)
@@ -149,7 +143,6 @@ export default function ThreadPage() {
       if (action === 'move')   await supabase.from('forum_threads').update({ category_id: extra }).eq('id', threadId)
       if (action === 'delete') await supabase.from('forum_threads').delete().eq('id', threadId)
 
-      // Thread nach Action nachladen (inkl. is_pinned/locked/done usw.)
       const { data: updated } = await supabase
         .from('forum_threads')
         .select(`
@@ -161,7 +154,6 @@ export default function ThreadPage() {
         .single()
       setThread(updated || null)
 
-      // Bei delete zurück zur Kategorie
       if (action === 'delete' && updated === null) {
         if (thread?.category?.slug) router.replace(`/forum/${thread.category.slug}`)
         else router.replace('/forum')
@@ -171,12 +163,17 @@ export default function ThreadPage() {
     }
   }
 
-  // Rechte pro Post
-  const canDeleteFor = (authorRole) => {
-    // - eigener Kommentar -> handled unten über id-Vergleich; hier nur Fremd-Kommentar-Regel
-    // - admin: immer
-    // - mod: nur wenn der Autor NICHT admin ist
-    return isAdmin || (isMod && (authorRole || '').toLowerCase() !== 'admin')
+const canDeleteThread = (authorRole) => {
+  if (isAdmin) return true
+  if (isMod && (authorRole || '').toLowerCase() !== 'admin') return true
+  return false
+}
+
+  // Rechte für Kommentare löschen
+  const canDeletePost = (authorRole) => {
+    if (isAdmin) return true
+    if (isMod && (authorRole || '').toLowerCase() !== 'admin') return true
+    return false
   }
 
   return (
@@ -203,94 +200,53 @@ export default function ThreadPage() {
           {thread?.title || 'Lade…'}
         </h1>
 
-        {/* Admin/Mod – Aktionsmenü */}
-        {(isAdmin || isMod) && thread?.category?.slug !== 'ankuendigungen' && thread && (
-          <div style={{ margin: '8px 0 12px' }}>
-            <select
-              defaultValue=""
-              onChange={(e) => {
-                const val = e.target.value
-                if (!val) return
-                if (val === 'move') {
-                  const newCategoryId = prompt('Bitte Kategorie-ID eingeben (außer Ankündigungen):')
-                  if (newCategoryId) handleThreadAction(thread.id, 'move', newCategoryId)
-                } else {
-                  handleThreadAction(thread.id, val)
-                }
-                e.target.value = ''
-              }}
-            >
-              <option value="" disabled>Aktion wählen…</option>
-              {thread?.is_pinned ? <option value="unpin">Unpin</option> : <option value="pin">Pin</option>}
-              {thread?.locked ? <option value="unlock">Unlock</option> : <option value="lock">Lock</option>}
-              {thread?.done ? <option value="undone">Nicht erledigt</option> : <option value="done">Erledigt</option>}
-              <option value="move">Verschieben</option>
-              <option value="delete">Löschen</option>
-            </select>
-          </div>
-        )}
+        {/* Thread-Aktionsmenü nach Rollen */}
+{thread && (
+  <>
+    {(isAdmin || isMod) && (
+      <div style={{ margin: '8px 0 12px' }}>
+        <select
+          defaultValue=""
+          onChange={(e) => {
+            const val = e.target.value
+            if (!val) return
+            if (val === 'move') {
+              const newCategoryId = prompt('Bitte Kategorie-ID eingeben:')
+              if (newCategoryId) handleThreadAction(thread.id, 'move', newCategoryId)
+            } else {
+              handleThreadAction(thread.id, val)
+            }
+            e.target.value = ''
+          }}
+        >
+          <option value="" disabled>Aktion wählen…</option>
+          {thread?.is_pinned ? <option value="unpin">Unpin</option> : <option value="pin">Pin</option>}
+          {thread?.locked ? <option value="unlock">Unlock</option> : <option value="lock">Lock</option>}
+          {thread?.done ? <option value="undone">Nicht erledigt</option> : <option value="done">Erledigt</option>}
+          <option value="move">Verschieben</option>
 
-        {/* Erledigt-Status + Buttons nach Rollen/Kategorien */}
-        {thread && (
-          <div style={{ marginBottom: 12 }}>
-            {thread.done && (
-              <span style={{ color: 'green', fontWeight: 'bold', marginRight: 8 }}>✅ Erledigt</span>
-            )}
+          {/* Löschen nur wenn erlaubt */}
+          {canDeleteThread(thread?.author?.role) && (
+            <option value="delete">Löschen</option>
+          )}
+        </select>
+      </div>
+    )}
 
-            {session?.user && (
-              <>
-                {!thread.done ? (
-                  (
-                    (['bugs', 'bugs-fehler', 'wuensche', 'wuensche-anregungen'].includes(thread.category.slug) && (isAdmin || role === 'moderator')) ||
-                    (thread.category.slug === 'fragen-probleme' && session.user.id === thread.author_id)
-                  ) && (
-                    <button
-                      onClick={async () => {
-                        const { error } = await supabase
-                          .from('forum_threads')
-                          .update({ done: true })
-                          .eq('id', thread.id)
-                        if (error) return alert(error.message)
-                        setThread({ ...thread, done: true })
-                      }}
-                      style={{
-                        background: '#22c55e',
-                        color: '#fff',
-                        border: 'none',
-                        padding: '6px 10px',
-                        borderRadius: 4
-                      }}
-                    >
-                      Als erledigt markieren
-                    </button>
-                  )
-                ) : (
-                  (isAdmin || isMod) && (
-                    <button
-                      onClick={async () => {
-                        const { error } = await supabase
-                          .from('forum_threads')
-                          .update({ done: false })
-                          .eq('id', thread.id)
-                        if (error) return alert(error.message)
-                        setThread({ ...thread, done: false })
-                      }}
-                      style={{
-                        background: '#ef4444',
-                        color: '#fff',
-                        border: 'none',
-                        padding: '6px 10px',
-                        borderRadius: 4
-                      }}
-                    >
-                      Als nicht erledigt markieren
-                    </button>
-                  )
-                )}
-              </>
-            )}
-          </div>
-        )}
+    {/* User darf seinen eigenen Thread bearbeiten, aber nicht löschen */}
+    {!isAdmin && !isMod && session?.user?.id === thread?.author_id && (
+      <div style={{ margin: '8px 0 12px' }}>
+        <button
+          onClick={() => alert('Bearbeiten-Funktion für Threads kannst du hier noch implementieren')}
+          style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid #ccc' }}
+        >
+          Thread bearbeiten
+        </button>
+      </div>
+    )}
+  </>
+)}
+
 
         {/* Posts als Tabelle */}
         <table className="forum-table">
@@ -311,12 +267,10 @@ export default function ThreadPage() {
             {posts.map((p) => {
               const canEditOwn = session?.user?.id === p.author_id
               const authorRole = (p.author?.role || '').toLowerCase()
-              const canDelete = !!session?.user && (canEditOwn || canDeleteFor(authorRole))
 
               return (
                 <tr key={p.id}>
                   <td style={{ verticalAlign: 'top' }}>
-                    {/* Name + Rolle + Zeit */}
                     {authorRole === 'admin' && (
                       <span style={{ color: 'red', fontWeight: 'bold' }}>
                         {p.author?.Username} (Admin)
@@ -346,44 +300,42 @@ export default function ThreadPage() {
                           rows={5}
                           style={{ width: '100%', padding: 8, border: '1px solid #ccc', borderRadius: 6 }}
                         />
-                        {(
-  (isAdmin && thread?.category?.slug === "ankuendigungen") ||
-  ((isAdmin || isMod) && thread?.category?.slug !== "ankuendigungen")
-) && (
-  <div style={{ marginTop: 8 }}>
-    <select
-      defaultValue=""
-      onChange={(e) => {
-        const val = e.target.value;
-        if (val === "move") {
-          const newCategoryId = prompt("Bitte Kategorie-ID eingeben:");
-          if (newCategoryId) handleThreadAction(thread.id, "move", newCategoryId);
-        } else {
-          handleThreadAction(thread.id, val);
-        }
-        e.target.value = "";
-      }}
-    >
-      <option value="" disabled>Aktion wählen…</option>
-      {thread?.is_pinned
-        ? <option value="unpin">Unpin</option>
-        : <option value="pin">Pin</option>}
-      {thread?.locked
-        ? <option value="unlock">Unlock</option>
-        : <option value="lock">Lock</option>}
-      {thread?.done === true && <option value="undone">Nicht erledigt</option>}
-      {thread?.done === false && <option value="done">Erledigt</option>}
-      <option value="move">Verschieben</option>
-      <option value="delete">Löschen</option>
-    </select>
-  </div>
-)}
+                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const newText = editText.trim()
+                              if (!newText) return alert('Text darf nicht leer sein.')
+                              const { error } = await supabase
+                                .from('forum_posts')
+                                .update({ content: newText })
+                                .eq('id', p.id)
+                              if (error) return alert(error.message)
 
+                              const { data: reload } = await supabase
+                                .from('forum_posts')
+                                .select(`
+                                  id, content, created_at, author_id,
+                                  author:Users!forum_posts_author_id_fkey ( Username, role )
+                                `)
+                                .eq('thread_id', id)
+                                .order('created_at', { ascending: true })
+
+                              setPosts(reload || [])
+                              setEditingId(null)
+                              setEditText('')
+                            }}
+                          >
+                            Speichern
+                          </button>
+                          <button type="button" onClick={() => { setEditingId(null); setEditText('') }}>
+                            Abbrechen
+                          </button>
+                        </div>
                       </>
                     ) : (
                       <>
                         <div style={{ whiteSpace: 'pre-wrap' }}>{p.content}</div>
-
                         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                           {/* Bearbeiten: nur eigener Kommentar */}
                           {canEditOwn && editingId !== p.id && (
@@ -394,9 +346,8 @@ export default function ThreadPage() {
                               Bearbeiten
                             </button>
                           )}
-
-                          {/* Löschen: eigener Kommentar, oder gemäß Regel (Admin immer, Mod nicht Admin-Kommentare) */}
-                          {canDelete && (
+                          {/* Löschen: nur Admin/Mod */}
+                          {canDeletePost(authorRole) && (
                             <button
                               type="button"
                               onClick={async () => {
