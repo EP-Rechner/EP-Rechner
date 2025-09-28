@@ -19,6 +19,11 @@ export default function ThreadPage() {
   const [editingId, setEditingId] = useState(null)
   const [editText, setEditText] = useState('')
 
+  // Modal State fürs Verschieben
+  const [showMoveModal, setShowMoveModal] = useState(false)
+  const [allCats, setAllCats] = useState([])
+  const [selectedCatId, setSelectedCatId] = useState("")
+
   const role = (me?.role || '').toLowerCase()
   const isAdmin = role === 'admin'
   const isMod   = isAdmin || role === 'moderator'
@@ -38,6 +43,19 @@ export default function ThreadPage() {
       }
     }
     init()
+  }, [])
+
+  // Kategorien laden (für Move-Dropdown)
+  useEffect(() => {
+    const loadCats = async () => {
+      const { data } = await supabase
+        .from("forum_categories")
+        .select("id, name, slug")
+        .neq("slug", "ankuendigungen")
+        .order("name")
+      setAllCats(data || [])
+    }
+    loadCats()
   }, [])
 
   // Thread + Posts laden
@@ -208,15 +226,14 @@ const canDeleteThread = (authorRole) => {
         <select
           defaultValue=""
           onChange={(e) => {
-            const val = e.target.value
-            if (!val) return
+            const val = e.target.value;
+            if (!val) return;
             if (val === 'move') {
-              const newCategoryId = prompt('Bitte Kategorie-ID eingeben:')
-              if (newCategoryId) handleThreadAction(thread.id, 'move', newCategoryId)
+              setShowMoveModal(true);   // ✅ richtig: ohne "const"
             } else {
-              handleThreadAction(thread.id, val)
+              handleThreadAction(thread.id, val);
             }
-            e.target.value = ''
+            e.target.value = '';
           }}
         >
           <option value="" disabled>Aktion wählen…</option>
@@ -372,6 +389,60 @@ const canDeleteThread = (authorRole) => {
             })}
           </tbody>
         </table>
+
+        {/* Move Modal */}
+{showMoveModal && (
+  <div style={{
+    position: "fixed",
+    top: 0, left: 0, right: 0, bottom: 0,
+    background: "rgba(0,0,0,0.5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000
+  }}>
+    <div style={{ background: "#fff", padding: 20, borderRadius: 8, minWidth: 300 }}>
+      <h3>Thread verschieben</h3>
+      <select
+        value={selectedCatId}
+        onChange={(e) => setSelectedCatId(e.target.value)}
+        style={{ width: "100%", padding: 8, marginTop: 12 }}
+      >
+        <option value="">Kategorie wählen…</option>
+        {allCats.map(c => (
+          <option key={c.id} value={c.id}>{c.name}</option>
+        ))}
+      </select>
+
+      <div style={{ marginTop: 16, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <button
+          onClick={() => setShowMoveModal(false)}
+          style={{ padding: "6px 12px" }}
+        >
+          Abbrechen
+        </button>
+        <button
+          onClick={async () => {
+            if (!selectedCatId) {
+              alert("Bitte eine Kategorie auswählen.");
+              return;
+            }
+            // Verschiebe alle ausgewählten Threads
+            for (const tId of selectedThreads) {
+              await handleThreadAction(tId, "move", selectedCatId);
+            }
+            setSelectedThreads([]);
+            setSelectedCatId("");
+            setShowMoveModal(false);
+          }}
+          style={{ padding: "6px 12px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 4 }}
+        >
+          Verschieben
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
         {/* Kommentarformular */}
         {thread && !thread.locked && (

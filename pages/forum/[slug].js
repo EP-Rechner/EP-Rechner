@@ -1,5 +1,4 @@
 // pages/forum/[slug].js
-// pages/forum/[slug].js
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -15,6 +14,11 @@ export default function ForumCategory() {
   const [session, setSession] = useState(null)
   const [selectedThreads, setSelectedThreads] = useState([]);
   const [me, setMe] = useState(null) // Users row (Username, role)
+
+  // Modal State
+  const [showMoveModal, setShowMoveModal] = useState(false)
+  const [moveTargetThreads, setMoveTargetThreads] = useState([])
+  const [selectedCatId, setSelectedCatId] = useState("")
 
   // Form state
   const [title, setTitle] = useState('')
@@ -41,6 +45,19 @@ export default function ForumCategory() {
       }
     }
     init()
+  }, [])
+
+  // Lade Kategorien für das Verschiebe-Dropdown (außer Ankündigungen)
+  useEffect(() => {
+    const loadCats = async () => {
+      const { data } = await supabase
+        .from("forum_categories")
+        .select("id, name, slug")
+        .neq("slug", "ankuendigungen")
+        .order("name")
+      setAllCats(data || [])
+    }
+    loadCats()
   }, [])
 
   // Lade Kategorie + Threads
@@ -283,7 +300,7 @@ export default function ForumCategory() {
         <h1>{cat ? cat.name : 'Lade Kategorie…'}</h1>
         {cat?.description && <p className="forum-description">{cat.description}</p>}
 
-         {/* Admins in Ankündigungen oder Mods/Admins in allen anderen Kategorien */}
+        {/* Dropdown für Mehrfachaktionen */}
         {(
           (isAdmin && cat?.slug === "ankuendigungen") ||
           ((isAdmin || isMod) && cat?.slug !== "ankuendigungen")
@@ -292,18 +309,16 @@ export default function ForumCategory() {
             <select
               defaultValue=""
               onChange={(e) => {
-                const val = e.target.value
-                if (!val) return
+                const val = e.target.value;
+                if (!val) return;
                 if (val === "move") {
-                  const newCategoryId = prompt("Bitte Kategorie-ID eingeben:")
-                  if (newCategoryId) {
-                    selectedThreads.forEach(id => handleThreadAction(id, "move", newCategoryId))
-                  }
+                  setMoveTargetThreads(selectedThreads);
+                  setShowMoveModal(true);   // ✅ Modal öffnen
                 } else {
-                  selectedThreads.forEach(id => handleThreadAction(id, val))
+                  selectedThreads.forEach(id => handleThreadAction(id, val));
                 }
-                setSelectedThreads([])
-                e.target.value = ""
+                setSelectedThreads([]);
+                e.target.value = "";
               }}
             >
               <option value="" disabled>Aktion für ausgewählte Threads wählen…</option>
@@ -408,6 +423,60 @@ export default function ForumCategory() {
           </tbody>
         </table>
 
+        {/* Move Modal */}
+{showMoveModal && (
+  <div style={{
+    position: "fixed",
+    top: 0, left: 0, right: 0, bottom: 0,
+    background: "rgba(0,0,0,0.5)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1000
+  }}>
+    <div style={{ background: "#fff", padding: 20, borderRadius: 8, minWidth: 300 }}>
+      <h3>Thread verschieben</h3>
+      <select
+        value={selectedCatId}
+        onChange={(e) => setSelectedCatId(e.target.value)}
+        style={{ width: "100%", padding: 8, marginTop: 12 }}
+      >
+        <option value="">Kategorie wählen…</option>
+        {allCats.map(c => (
+          <option key={c.id} value={c.id}>{c.name}</option>
+        ))}
+      </select>
+
+      <div style={{ marginTop: 16, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <button
+          onClick={() => setShowMoveModal(false)}
+          style={{ padding: "6px 12px" }}
+        >
+          Abbrechen
+        </button>
+        <button
+          onClick={async () => {
+            if (!selectedCatId) {
+              alert("Bitte eine Kategorie auswählen.");
+              return;
+            }
+            // Verschiebe alle ausgewählten Threads
+            for (const tId of selectedThreads) {
+              await handleThreadAction(tId, "move", selectedCatId);
+            }
+            setSelectedThreads([]);
+            setSelectedCatId("");
+            setShowMoveModal(false);
+          }}
+          style={{ padding: "6px 12px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 4 }}
+        >
+          Verschieben
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
         <h2>Neuen Thread erstellen</h2>
         {session?.user && !canCreateInThisCategory && cat?.slug?.toLowerCase() === 'ankuendigungen' &&(
           <p>Nur Admins dürfen hier neue Threads erstellen.</p>
@@ -446,6 +515,22 @@ export default function ForumCategory() {
           margin-bottom: 8px;
           font-size: 22px;
           }
+
+          .modal-overlay {
+                position: fixed;
+                top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0,0,0,0.5);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+              }
+              .modal {
+                background: white;
+                padding: 20px;
+                border-radius: 8px;
+                max-width: 400px;
+                width: 100%;
+              }
 
         .forum-description {
           color: #666;
