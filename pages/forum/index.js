@@ -19,7 +19,7 @@ export default function ForumIndex() {
       setSession(session || null);
       if (session?.user) {
         const { data: meRow } = await supabase
-          .from('Users')
+          .from('mitglieder')
           .select('Username, role')
           .eq('id', session.user.id)
           .single();
@@ -59,7 +59,7 @@ export default function ForumIndex() {
         .select('id, category_id, created_at');
       if (thrErr) console.error(thrErr);
 
-      // Reads des Users (für NEU)
+      // Reads des mitglieder (für NEU)
       let readMap = new Map();
       if (session?.user) {
         const { data: reads, error: readErr } = await supabase

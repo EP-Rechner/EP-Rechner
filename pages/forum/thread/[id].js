@@ -35,7 +35,7 @@ export default function ThreadPage() {
       setSession(session || null)
       if (session?.user) {
         const { data: meRow } = await supabase
-          .from('Users')
+          .from('mitglieder')
           .select('Username, role')
           .eq('id', session.user.id)
           .single()
@@ -67,7 +67,7 @@ export default function ThreadPage() {
         .select(`
           id, title, created_at, author_id, locked, done, is_pinned,
           category:forum_categories ( id, slug, name ),
-          author:Users!forum_threads_author_id_fkey ( Username, role )
+          author:mitglieder!forum_threads_author_id_fkey ( Username, role )
         `)
         .eq('id', id)
         .single()
@@ -77,7 +77,7 @@ export default function ThreadPage() {
         .from('forum_posts')
         .select(`
           id, content, created_at, author_id,
-          author:Users!forum_posts_author_id_fkey ( Username, role )
+          author:mitglieder!forum_posts_author_id_fkey ( Username, role )
         `)
         .eq('thread_id', id)
         .order('created_at', { ascending: true })
@@ -132,7 +132,7 @@ export default function ThreadPage() {
       .from('forum_posts')
       .select(`
         id, content, created_at, author_id,
-        author:Users!forum_posts_author_id_fkey ( Username, role )
+        author:mitglieder!forum_posts_author_id_fkey ( Username, role )
       `)
       .eq('thread_id', id)
       .order('created_at', { ascending: true })
@@ -166,7 +166,7 @@ export default function ThreadPage() {
         .select(`
           id, title, created_at, author_id, locked, is_pinned, done,
           category:forum_categories ( id, slug, name ),
-          author:Users!forum_threads_author_id_fkey ( Username, role )
+          author:mitglieder!forum_threads_author_id_fkey ( Username, role )
         `)
         .eq('id', threadId)
         .single()
@@ -333,7 +333,7 @@ const canDeleteThread = (authorRole) => {
                                 .from('forum_posts')
                                 .select(`
                                   id, content, created_at, author_id,
-                                  author:Users!forum_posts_author_id_fkey ( Username, role )
+                                  author:mitglieder!forum_posts_author_id_fkey ( Username, role )
                                 `)
                                 .eq('thread_id', id)
                                 .order('created_at', { ascending: true })

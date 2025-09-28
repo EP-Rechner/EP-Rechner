@@ -13,7 +13,7 @@ export default function ForumCategory() {
   const [threads, setThreads] = useState([])
   const [session, setSession] = useState(null)
   const [selectedThreads, setSelectedThreads] = useState([]);
-  const [me, setMe] = useState(null) // Users row (Username, role)
+  const [me, setMe] = useState(null) // mitglieder row (Username, role)
 
   // Modal State
   const [showMoveModal, setShowMoveModal] = useState(false)
@@ -37,7 +37,7 @@ export default function ForumCategory() {
       setSession(session || null)
       if (session?.user) {
         const { data: meRow } = await supabase
-          .from('Users')
+          .from('mitglieder')
           .select('Username, role')
           .eq('id', session.user.id)
           .single()
@@ -84,7 +84,7 @@ export default function ForumCategory() {
         .from('forum_threads')
         .select(`
           id, title, created_at, author_id, locked, is_pinned, done,
-          author:Users!forum_threads_author_id_fkey ( Username, role )
+          author:mitglieder!forum_threads_author_id_fkey ( Username, role )
         `)
         .eq('category_id', category.id);
 
@@ -208,7 +208,7 @@ export default function ForumCategory() {
         .from('forum_threads')
         .select(`
           id, title, created_at, author_id, locked, is_pinned,
-          author:Users!forum_threads_author_id_fkey ( Username, role )
+          author:mitglieder!forum_threads_author_id_fkey ( Username, role )
         `)
         .eq('category_id', cat.id)
         .order('is_pinned', { ascending: false })
@@ -283,7 +283,7 @@ export default function ForumCategory() {
         .from("forum_threads")
         .select(`
           id, title, created_at, author_id, locked, is_pinned, done,
-          author:Users!forum_threads_author_id_fkey ( Username, role )
+          author:mitglieder!forum_threads_author_id_fkey ( Username, role )
         `)
         .eq("category_id", cat.id);
 
