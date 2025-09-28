@@ -25,7 +25,7 @@ export default function Login() {
     .eq("id", data.user.id);
 
   if (updateError) {
-    console.error("Update last_login failed:", updateError);
+    console.error("Update last_login failed:", updateError.message);
   }
 }
 
