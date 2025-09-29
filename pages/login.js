@@ -42,7 +42,7 @@ export default function Login() {
     }
 
     // 3. Weiterleitung: username prüfen
-    if (userData?.username?.startsWith('user_')) {
+    if (!userData?.username) {
       router.push('/set-username')
     } else {
       router.push('/pferde') // <--- statt "/" direkt zur Pferde-Seite
