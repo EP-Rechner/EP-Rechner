@@ -13,7 +13,7 @@ export default function Register() {
     // 1. User in auth.users anlegen
     const { data, error } = await supabase.auth.signUp({
       email,
-      password
+      password,
     })
 
     if (error) {
@@ -21,26 +21,10 @@ export default function Register() {
       return
     }
 
+    // ✅ kein manueller Insert mehr → Trigger kümmert sich darum
     if (data.user) {
-      // 2. Passenden Eintrag in "mitglieder" anlegen
-      const { error: insertError } = await supabase
-        .from('mitglieder')
-        .insert([
-          {
-            id: data.user.id,   // gleiche ID wie auth.users
-            username: null,     // bleibt leer!
-            role: 'user'        // Standardrolle
-          }
-        ])
-
-      if (insertError) {
-        console.error('Fehler beim Einfügen in mitglieder:', insertError)
-        setErrorMsg('Fehler beim Anlegen des Benutzerprofils.')
-        return
-      }
+      alert('Registrierung erfolgreich! Bitte prüfe dein Email-Postfach zur Bestätigung.')
     }
-
-    alert('Registrierung erfolgreich! Bitte prüfe dein Email-Postfach zur Bestätigung.')
   }
 
   return (
