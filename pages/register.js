@@ -12,12 +12,26 @@ export default function Register() {
       password
     })
     if (error) {
-      alert('Fehler: ' + error.message)
-    } else {
-      alert('Registrierung erfolgreich! Bitte prüfe dein Email-Postfach zur Bestätigung.')
+      alert('Fehler: ' + error.message);
+      return;
     }
-  }
-
+    if (data.user) {
+      const { error: insertError } = await supabase
+      .from('mitglieder')
+      .insert([
+        {
+          id: data.user.id,
+          username: null,
+          role: 'user'
+        }
+      ]);
+      if (insertERROR) {
+        console.error('Fegler beim Einfügen in mitglieder:', insertERROR);
+      }
+    }
+    alert('Registrierung erfolgreich! Bitte prüfe dein Email-Postfach zur Bestätigung.');
+  };
+  
   return (
     <div style={{ padding: '20px' }}>
       <h2>Registrierung</h2>
