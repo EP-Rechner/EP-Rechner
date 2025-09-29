@@ -38,7 +38,7 @@ export default function ForumCategory() {
       if (session?.user) {
         const { data: meRow } = await supabase
           .from('mitglieder')
-          .select('Username, role')
+          .select('username, role')
           .eq('id', session.user.id)
           .single()
         setMe(meRow || null)
@@ -84,7 +84,7 @@ export default function ForumCategory() {
         .from('forum_threads')
         .select(`
           id, title, created_at, author_id, locked, is_pinned, done,
-          author:mitglieder!forum_threads_author_id_fkey ( Username, role )
+          author:mitglieder!forum_threads_author_id_fkey ( username, role )
         `)
         .eq('category_id', category.id);
 
@@ -208,7 +208,7 @@ export default function ForumCategory() {
         .from('forum_threads')
         .select(`
           id, title, created_at, author_id, locked, is_pinned,
-          author:mitglieder!forum_threads_author_id_fkey ( Username, role )
+          author:mitglieder!forum_threads_author_id_fkey ( username, role )
         `)
         .eq('category_id', cat.id)
         .order('is_pinned', { ascending: false })
@@ -283,7 +283,7 @@ export default function ForumCategory() {
         .from("forum_threads")
         .select(`
           id, title, created_at, author_id, locked, is_pinned, done,
-          author:mitglieder!forum_threads_author_id_fkey ( Username, role )
+          author:mitglieder!forum_threads_author_id_fkey ( username, role )
         `)
         .eq("category_id", cat.id);
 

@@ -29,10 +29,10 @@ export default function Login() {
       return
     }
 
-    // 2. Username aus Tabelle "Users" laden
+    // 2. username aus Tabelle "mitglieder" laden
     const { data: userData, error: userError } = await supabase
-      .from('Users')
-      .select('Username, role')
+      .from('mitglieder')
+      .select('username, role')
       .eq('id', data.user.id)
       .single()
 
@@ -41,8 +41,8 @@ export default function Login() {
       return
     }
 
-    // 3. Weiterleitung: Username prüfen
-    if (userData?.Username?.startsWith('user_')) {
+    // 3. Weiterleitung: username prüfen
+    if (userData?.username?.startsWith('user_')) {
       router.push('/set-username')
     } else {
       router.push('/pferde') // <--- statt "/" direkt zur Pferde-Seite

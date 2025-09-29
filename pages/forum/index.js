@@ -20,7 +20,7 @@ export default function ForumIndex() {
       if (session?.user) {
         const { data: meRow } = await supabase
           .from('mitglieder')
-          .select('Username, role')
+          .select('username, role')
           .eq('id', session.user.id)
           .single();
         setMe(meRow || null);

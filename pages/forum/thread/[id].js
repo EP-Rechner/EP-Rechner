@@ -36,7 +36,7 @@ export default function ThreadPage() {
       if (session?.user) {
         const { data: meRow } = await supabase
           .from('mitglieder')
-          .select('Username, role')
+          .select('username, role')
           .eq('id', session.user.id)
           .single()
         setMe(meRow || null)
@@ -67,7 +67,7 @@ export default function ThreadPage() {
         .select(`
           id, title, created_at, author_id, locked, done, is_pinned,
           category:forum_categories ( id, slug, name ),
-          author:mitglieder!forum_threads_author_id_fkey ( Username, role )
+          author:mitglieder!forum_threads_author_id_fkey ( username, role )
         `)
         .eq('id', id)
         .single()
@@ -77,7 +77,7 @@ export default function ThreadPage() {
         .from('forum_posts')
         .select(`
           id, content, created_at, author_id,
-          author:mitglieder!forum_posts_author_id_fkey ( Username, role )
+          author:mitglieder!forum_posts_author_id_fkey ( username, role )
         `)
         .eq('thread_id', id)
         .order('created_at', { ascending: true })
@@ -132,7 +132,7 @@ export default function ThreadPage() {
       .from('forum_posts')
       .select(`
         id, content, created_at, author_id,
-        author:mitglieder!forum_posts_author_id_fkey ( Username, role )
+        author:mitglieder!forum_posts_author_id_fkey ( username, role )
       `)
       .eq('thread_id', id)
       .order('created_at', { ascending: true })
@@ -166,7 +166,7 @@ export default function ThreadPage() {
         .select(`
           id, title, created_at, author_id, locked, is_pinned, done,
           category:forum_categories ( id, slug, name ),
-          author:mitglieder!forum_threads_author_id_fkey ( Username, role )
+          author:mitglieder!forum_threads_author_id_fkey ( username, role )
         `)
         .eq('id', threadId)
         .single()
@@ -290,17 +290,17 @@ const canDeleteThread = (authorRole) => {
                   <td style={{ verticalAlign: 'top' }}>
                     {authorRole === 'admin' && (
                       <span style={{ color: 'red', fontWeight: 'bold' }}>
-                        {p.author?.Username} (Admin)
+                        {p.author?.username} (Admin)
                       </span>
                     )}
                     {authorRole === 'moderator' && (
                       <span style={{ color: 'green', fontWeight: 'bold' }}>
-                        {p.author?.Username} (Moderator)
+                        {p.author?.username} (Moderator)
                       </span>
                     )}
                     {!['admin', 'moderator'].includes(authorRole) && (
                       <span style={{ color: '#1e2ba0ff', fontWeight: 'bold' }}>
-                        {p.author?.Username || 'Unbekannt'}
+                        {p.author?.username || 'Unbekannt'}
                       </span>
                     )}
                     <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
@@ -333,7 +333,7 @@ const canDeleteThread = (authorRole) => {
                                 .from('forum_posts')
                                 .select(`
                                   id, content, created_at, author_id,
-                                  author:mitglieder!forum_posts_author_id_fkey ( Username, role )
+                                  author:mitglieder!forum_posts_author_id_fkey ( username, role )
                                 `)
                                 .eq('thread_id', id)
                                 .order('created_at', { ascending: true })

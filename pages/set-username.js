@@ -24,7 +24,7 @@ export default function SetUsername() {
 
     const { error } = await supabase
       .from('mitglieder')
-      .update({ Username: username })
+      .update({ username: username })
       .eq('id', user.id)
 
     if (error) {
