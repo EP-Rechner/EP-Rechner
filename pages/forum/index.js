@@ -36,7 +36,7 @@ export default function ForumIndex() {
       const { data: categories, error: catErr } = await supabase
         .from('forum_categories')
         .select('id, name, slug, description')
-        .order('name', { ascending: true });
+        .order('position', { ascending: true });
 
       if (catErr) {
         console.error(catErr);
