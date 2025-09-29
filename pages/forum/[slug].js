@@ -345,8 +345,8 @@ export default function ForumCategory() {
     <th style={{ width: 40, textAlign: "center" }}>✔</th>
   )}
   <th style={{ width: "65%" }}>Thread</th>
-  <th style={{ width: 80, textAlign: "right" }}>Kommentare</th>
-  <th style={{ width: 160, textAlign: "right" }}>Letzter Beitrag</th>
+  <th style={{ width: 80, textAlign: "center" }}>Kommentare</th>
+  <th style={{ width: 160, textAlign: "center" }}>Letzter Beitrag</th>
 </tr>
 
           </thead>

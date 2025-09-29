@@ -139,8 +139,8 @@ export default function ForumIndex() {
             <tr>
               <th style={{ width: '35%' }}>Kategorie</th>
               <th style={{ width: '35%' }}>Beschreibung</th>
-              <th style={{ width: 80, textAlign: "right" }}>Threads</th>
-              <th style={{ width: 200, textAlign: "right" }}>Letzter Beitrag</th>
+              <th style={{ width: 80, textAlign: "center" }}>Threads</th>
+              <th style={{ width: 200, textAlign: "center" }}>Letzter Beitrag</th>
             </tr>
           </thead>
           <tbody>
