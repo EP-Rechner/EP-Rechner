@@ -98,7 +98,6 @@ export default function ThreadPage() {
             thread_id: thread.id,
             last_read_at: new Date().toISOString()
           }, { onConflict: 'user_id, thread_id' })
-
         if (error) {
           console.error('Fehler beim upsert forum_thread_reads:', error)
         }
@@ -149,7 +148,7 @@ export default function ThreadPage() {
     }
   }
 
-  // Thread-Aktion (nur Admin/Mod)
+  // Thread-Aktion (Admin/Mod)
   const handleThreadAction = async (threadId, action, extra) => {
     try {
       if (action === 'pin')    await supabase.from('forum_threads').update({ is_pinned: true  }).eq('id', threadId)
@@ -181,11 +180,11 @@ export default function ThreadPage() {
     }
   }
 
-const canDeleteThread = (authorRole) => {
-  if (isAdmin) return true
-  if (isMod && (authorRole || '').toLowerCase() !== 'admin') return true
-  return false
-}
+  const canDeleteThread = (authorRole) => {
+    if (isAdmin) return true
+    if (isMod && (authorRole || '').toLowerCase() !== 'admin') return true
+    return false
+  }
 
   // Rechte für Kommentare löschen
   const canDeletePost = (authorRole) => {
@@ -219,65 +218,62 @@ const canDeleteThread = (authorRole) => {
         </h1>
 
         {/* Thread-Aktionsmenü nach Rollen */}
-{thread && (
-  <>
-    {(isAdmin || isMod) && (
-      <div style={{ margin: '8px 0 12px' }}>
-        <select
-          defaultValue=""
-          onChange={(e) => {
-            const val = e.target.value;
-            if (!val) return;
-            if (val === 'move') {
-              setShowMoveModal(true);   // ✅ richtig: ohne "const"
-            } else {
-              handleThreadAction(thread.id, val);
-            }
-            e.target.value = '';
-          }}
-        >
-          <option value="" disabled>Aktion wählen…</option>
-          {thread?.is_pinned ? <option value="unpin">Unpin</option> : <option value="pin">Pin</option>}
-          {thread?.locked ? <option value="unlock">Unlock</option> : <option value="lock">Lock</option>}
-          {thread?.done ? <option value="undone">Nicht erledigt</option> : <option value="done">Erledigt</option>}
-          <option value="move">Verschieben</option>
+        {thread && (
+          <>
+            {(isAdmin || isMod) && (
+              <div style={{ margin: '8px 0 12px' }}>
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    const val = e.target.value
+                    if (!val) return
+                    if (val === 'move') {
+                      setShowMoveModal(true)
+                    } else {
+                      handleThreadAction(thread.id, val)
+                    }
+                    e.target.value = ''
+                  }}
+                >
+                  <option value="" disabled>Aktion wählen…</option>
+                  {thread?.is_pinned ? <option value="unpin">Unpin</option> : <option value="pin">Pin</option>}
+                  {thread?.locked ? <option value="unlock">Unlock</option> : <option value="lock">Lock</option>}
+                  {thread?.done ? <option value="undone">Nicht erledigt</option> : <option value="done">Erledigt</option>}
+                  <option value="move">Verschieben</option>
+                  {canDeleteThread(thread?.author?.role) && (
+                    <option value="delete">Löschen</option>
+                  )}
+                </select>
+              </div>
+            )}
 
-          {/* Löschen nur wenn erlaubt */}
-          {canDeleteThread(thread?.author?.role) && (
-            <option value="delete">Löschen</option>
-          )}
-        </select>
-      </div>
-    )}
-
-    {/* User darf seinen eigenen Thread auf erledigt setzen */}
-{!isAdmin && !isMod && session?.user?.id === thread?.author_id && (
-  <div style={{ margin: '8px 0 12px' }}>
-    {thread?.done ? (
-      <span style={{ color: 'green', fontWeight: 'bold' }}>✅ Erledigt</span>
-    ) : (
-      <button
-        onClick={async () => {
-          const { error } = await supabase
-            .from('forum_threads')
-            .update({ done: true })
-            .eq('id', thread.id);
-
-          if (error) {
-            alert('Fehler beim Setzen auf erledigt: ' + error.message);
-          } else {
-            setThread({ ...thread, done: true }); // Sofort im State sichtbar
-          }
-        }}
-        style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid #ccc' }}
-      >
-        Als erledigt markieren
-      </button>
-    )}
-  </div>
-)}
-
-
+            {/* User darf seinen eigenen Thread auf erledigt setzen */}
+            {!isAdmin && !isMod && session?.user?.id === thread?.author_id && (
+              <div style={{ margin: '8px 0 12px' }}>
+                {thread?.done ? (
+                  <span style={{ color: 'green', fontWeight: 'bold' }}>✅ Erledigt</span>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      const { error } = await supabase
+                        .from('forum_threads')
+                        .update({ done: true })
+                        .eq('id', thread.id)
+                      if (error) {
+                        alert('Fehler beim Setzen auf erledigt: ' + error.message)
+                      } else {
+                        setThread({ ...thread, done: true })
+                      }
+                    }}
+                    style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid #ccc' }}
+                  >
+                    Als erledigt markieren
+                  </button>
+                )}
+              </div>
+            )}
+          </>
+        )}
 
         {/* Posts als Tabelle */}
         <table className="forum-table">
@@ -405,58 +401,54 @@ const canDeleteThread = (authorRole) => {
         </table>
 
         {/* Move Modal */}
-{showMoveModal && (
-  <div style={{
-    position: "fixed",
-    top: 0, left: 0, right: 0, bottom: 0,
-    background: "rgba(0,0,0,0.5)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1000
-  }}>
-    <div style={{ background: "#fff", padding: 20, borderRadius: 8, minWidth: 300 }}>
-      <h3>Thread verschieben</h3>
-      <select
-        value={selectedCatId}
-        onChange={(e) => setSelectedCatId(e.target.value)}
-        style={{ width: "100%", padding: 8, marginTop: 12 }}
-      >
-        <option value="">Kategorie wählen…</option>
-        {allCats.map(c => (
-          <option key={c.id} value={c.id}>{c.name}</option>
-        ))}
-      </select>
+        {showMoveModal && (
+          <div style={{
+            position: "fixed",
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000
+          }}>
+            <div style={{ background: "#fff", padding: 20, borderRadius: 8, minWidth: 300 }}>
+              <h3>Thread verschieben</h3>
+              <select
+                value={selectedCatId}
+                onChange={(e) => setSelectedCatId(e.target.value)}
+                style={{ width: "100%", padding: 8, marginTop: 12 }}
+              >
+                <option value="">Kategorie wählen…</option>
+                {allCats.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
 
-      <div style={{ marginTop: 16, display: "flex", gap: 8, justifyContent: "flex-end" }}>
-        <button
-          onClick={() => setShowMoveModal(false)}
-          style={{ padding: "6px 12px" }}
-        >
-          Abbrechen
-        </button>
-        <button
-          onClick={async () => {
-            if (!selectedCatId) {
-              alert("Bitte eine Kategorie auswählen.");
-              return;
-            }
-            // Verschiebe alle ausgewählten Threads
-            for (const tId of selectedThreads) {
-              await handleThreadAction(tId, "move", selectedCatId);
-            }
-            setSelectedThreads([]);
-            setSelectedCatId("");
-            setShowMoveModal(false);
-          }}
-          style={{ padding: "6px 12px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 4 }}
-        >
-          Verschieben
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+              <div style={{ marginTop: 16, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                <button
+                  onClick={() => setShowMoveModal(false)}
+                  style={{ padding: "6px 12px" }}
+                >
+                  Abbrechen
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!selectedCatId) {
+                      alert("Bitte eine Kategorie auswählen.")
+                      return
+                    }
+                    await handleThreadAction(thread.id, "move", selectedCatId)
+                    setSelectedCatId("")
+                    setShowMoveModal(false)
+                  }}
+                  style={{ padding: "6px 12px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 4 }}
+                >
+                  Verschieben
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Kommentarformular */}
         {thread && !thread.locked && (
