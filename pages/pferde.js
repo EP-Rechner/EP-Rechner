@@ -642,7 +642,7 @@ const pageRows = filtered.slice(start, end);
     }
 
     const columns = Object.keys(filtered[0]).filter(
-      (col) => col !== "id" && col !== "user_id"
+      (col) => col !== "id" && col !== "user_id" && col !== "created_at"
     );
 
     const allChecked = pageRows.length > 0 && pageRows.every((r) => selectedSet.has(r.id));
