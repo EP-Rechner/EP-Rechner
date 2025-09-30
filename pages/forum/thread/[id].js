@@ -18,6 +18,8 @@ export default function ThreadPage() {
 
   const [editingId, setEditingId] = useState(null)
   const [editText, setEditText] = useState('')
+  const [votes, setVotes] = useState({ pro: 0, neutral: 0, contra: 0 })
+
 
   // Modal State fürs Verschieben
   const [showMoveModal, setShowMoveModal] = useState(false)
@@ -147,6 +149,44 @@ export default function ThreadPage() {
         }, { onConflict: 'user_id, thread_id' })
     }
   }
+    // Abstimmung abgeben oder ändern
+  const handleVote = async (vote) => {
+    if (!session?.user) return alert("Bitte einloggen");
+
+    const { error } = await supabase
+      .from("forum_votes")
+      .upsert(
+        { thread_id: thread.id, user_id: session.user.id, vote },
+        { onConflict: "thread_id, user_id" }
+      )
+
+    if (error) {
+      alert("Fehler beim Voten: " + error.message)
+    } else {
+      loadVotes()
+    }
+  }
+  // Stimmen laden
+  const loadVotes = async () => {
+    const { data, error } = await supabase
+      .from("forum_votes")
+      .select("vote")
+      .eq("thread_id", id)
+
+    if (error) {
+      console.error("Fehler beim Laden der Stimmen:", error)
+      return
+    }
+
+    const counts = { pro: 0, neutral: 0, contra: 0 }
+    data.forEach(v => counts[v.vote]++)
+    setVotes(counts)
+  }
+
+  useEffect(() => {
+    if (id) loadVotes()
+  }, [id])
+
 
   // Thread-Aktion (Admin/Mod)
   const handleThreadAction = async (threadId, action, extra) => {
@@ -216,6 +256,24 @@ export default function ThreadPage() {
           {thread?.locked && <span style={{ marginRight: 6 }}>🔒</span>}
           {thread?.title || 'Lade…'}
         </h1>
+
+        {/* Abstimmungssystem nur in "Wünsche und Anregungen" */}
+{thread?.category?.slug === "wuensche-anregungen" && (
+  <div style={{ margin: "12px 0" }}>
+    <p><strong>Abstimmungsergebnis:</strong></p>
+    <p>
+      👍 Dafür: {votes.pro} · 😐 Egal: {votes.neutral} · 👎 Dagegen: {votes.contra}
+    </p>
+    {session?.user && (
+      <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+        <button onClick={() => handleVote("pro")}>👍 Dafür</button>
+        <button onClick={() => handleVote("neutral")}>😐 Egal</button>
+        <button onClick={() => handleVote("contra")}>👎 Dagegen</button>
+      </div>
+    )}
+  </div>
+)}
+
 
         {/* Thread-Aktionsmenü nach Rollen */}
         {thread && (
