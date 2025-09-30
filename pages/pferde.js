@@ -278,7 +278,7 @@ const { subscription } = supabase.auth.onAuthStateChange((event, session) => {
 
       const { error: insErr } = await supabase
         .from("pferde_gruppen")
-        .upsert(inserts, { onConflict: "gruppe_id,pferd_id,pferd_table" });
+        .upsert(inserts, { onConflict: "gruppe_id,pferd_id,pferd_table, user_id" });
       if (insErr) throw insErr;
 
       // Links neu laden und Mapping aktualisieren
@@ -331,7 +331,7 @@ const { subscription } = supabase.auth.onAuthStateChange((event, session) => {
       if (inserts.length > 0) {
         const { error: insErr } = await supabase
           .from("pferde_gruppen")
-          .upsert(inserts, { onConflict: "gruppe_id,pferd_id,pferd_table" });
+          .upsert(inserts, { onConflict: "gruppe_id,pferd_id,pferd_table, user_id" });
         if (insErr) throw insErr;
       }
 
