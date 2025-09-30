@@ -250,19 +250,33 @@ const canDeleteThread = (authorRole) => {
       </div>
     )}
 
-    {/* User darf seinen eigenen Thread bearbeiten, aber nicht löschen */}
-    {!isAdmin && !isMod && session?.user?.id === thread?.author_id && (
-      <div style={{ margin: '8px 0 12px' }}>
-        <button
-          onClick={() => alert('Bearbeiten-Funktion für Threads kannst du hier noch implementieren')}
-          style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid #ccc' }}
-        >
-          Thread bearbeiten
-        </button>
-      </div>
+    {/* User darf seinen eigenen Thread auf erledigt setzen */}
+{!isAdmin && !isMod && session?.user?.id === thread?.author_id && (
+  <div style={{ margin: '8px 0 12px' }}>
+    {thread?.done ? (
+      <span style={{ color: 'green', fontWeight: 'bold' }}>✅ Erledigt</span>
+    ) : (
+      <button
+        onClick={async () => {
+          const { error } = await supabase
+            .from('forum_threads')
+            .update({ done: true })
+            .eq('id', thread.id);
+
+          if (error) {
+            alert('Fehler beim Setzen auf erledigt: ' + error.message);
+          } else {
+            setThread({ ...thread, done: true }); // Sofort im State sichtbar
+          }
+        }}
+        style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid #ccc' }}
+      >
+        Als erledigt markieren
+      </button>
     )}
-  </>
+  </div>
 )}
+
 
 
         {/* Posts als Tabelle */}
@@ -462,7 +476,7 @@ const canDeleteThread = (authorRole) => {
             {errorMsg && <p style={{ color: 'red' }}>{errorMsg}</p>}
           </form>
         )}
-        {thread?.locked && <p>Dieser Thread ist gesperrt.</p>}
+        {thread?.locked && <p>Dieser Thread ist geschlossen.</p>}
       </div>
 
       <style jsx>{`
