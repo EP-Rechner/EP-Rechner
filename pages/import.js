@@ -232,13 +232,16 @@ useEffect(() => {
       <input value={link} onChange={e=>setLink(e.target.value)} style={{width:'100%', marginBottom:10}} />
 
       <label>Pferdepass (Pflicht, copy-paste):</label>
-      <textarea value={pferdepass} onChange={e=>setPferdepass(e.target.value)} rows={14} style={{width:'100%', marginBottom:10}} />
+      <textarea placeholder="Pferdepass einbetten (Strg+A), kopieren (Strg+C), einfügen (Strg+V) (copy-paste)"
+      value={pferdepass} onChange={e=>setPferdepass(e.target.value)} rows={14} style={{width:'100%', marginBottom:10}} />
 
       <label>Prämierung / Körung (optional, copy-paste):</label>
-      <textarea value={praekoer} onChange={e=>setPraeKoer(e.target.value)} rows={8} style={{width:'100%', marginBottom:10}} />
+      <textarea placeholder="Körung/Prämierung einbetten (Strg+A), kopieren (Strg+C), einfügen (Strg+V) (copy-paste)"
+      value={praekoer} onChange={e=>setPraeKoer(e.target.value)} rows={8} style={{width:'100%', marginBottom:10}} />
 
       <label>Farbgene (optional, copy-paste):</label>
-      <textarea value={farbgene} onChange={e=>setFarbgene(e.target.value)} rows={10} style={{width:'100%', marginBottom:10}} />
+      <textarea 
+      placeholder="Zuchtseite einbetten (Strg+A), kopieren (Strg+C), einfügen (Strg+V) (copy-paste)"value={farbgene} onChange={e=>setFarbgene(e.target.value)} rows={10} style={{width:'100%', marginBottom:10}} />
 
       <div style={{ display:'flex', gap:20, margin:'10px 0' }}>
         <label><input type="checkbox" checked={flaxen} onChange={e=>setFlaxen(e.target.checked)} /> Flaxen-Träger (manuell)</label>
