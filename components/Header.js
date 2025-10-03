@@ -55,6 +55,7 @@ export default function Header() {
   {/* Nur sichtbar wenn eingeloggt */}
   {session && (
     <>
+      <Link href="/dashboard" style={{ color: '#fff' }}>Startseite</Link>
       <Link href="/pferde" style={{ color: '#fff' }}>Pferdeübersicht</Link>
       <Link href="/import" style={{ color: '#fff' }}>Eintragen</Link>
       <Link href="/verpaaren" style={{ color: '#fff' }}>Zucht</Link>
