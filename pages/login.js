@@ -1,13 +1,27 @@
 // pages/login.js
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabaseClient'
+
 
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errorMsg, setErrorMsg] = useState(null)
   const router = useRouter()
+
+  // 👇 HIER kommt die Session-Killer-Logik
+  useEffect(() => {
+    const clearAutoLogin = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        // wenn Supabase den User durch Bestätigung auto-eingeloggt hat → sofort wieder ausloggen
+        await supabase.auth.signOut()
+      }
+    }
+    clearAutoLogin()
+  }, [])
+
 
   const handleLogin = async (e) => {
     e.preventDefault()
