@@ -1,5 +1,5 @@
 // pages/import.js
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { parsePferdepass, parsePraeKoer, parseFarbgene, parseDisziplinen } from '../lib/epParser'
 import { mapToDbRow } from '../lib/mapToDb'
@@ -25,6 +25,11 @@ export default function ImportTest() {
   const [zuchtziel, setZuchtziel] = useState('')
   const [notizen, setNotizen] = useState('')
   const [hengstOrt, setHengstOrt] = useState('')
+  const [hengstOrtCustom, setHengstOrtCustom] = useState('');
+
+  const [gruppen, setGruppen] = useState([]);
+  const [selectedGruppen, setSelectedGruppen] = useState([]); // Array mit IDs
+
 
   const [result, setResult] = useState(null)
   const [error, setError] = useState(null)
@@ -100,17 +105,44 @@ export default function ImportTest() {
     if (!userId) throw new Error('Kein eingeloggter User gefunden')
 
     const row = mapToDbRow(combined, userId, {
-      zucht,
-      zuchtziel,
-      notizen,
-      hengstOrt,
-      link
-    })
+  zucht,
+  zuchtziel,
+  notizen,
+  hengstOrt,
+  link
+});
+
+
 
     const table = combined.geschlecht === 'Hengst' ? 'Hengste' : 'Stuten'
 
-    const { error: insertError } = await supabase.from(table).insert(row)
-    if (insertError) throw insertError
+    // Pferd einfügen und ID zurückholen
+const { data: inserted, error: insertError } = await supabase
+  .from(table)
+  .insert(row)
+  .select('id')
+  .single();
+
+if (insertError) throw insertError;
+
+// Falls Gruppen ausgewählt wurden → in pferde_gruppen speichern
+if (inserted && selectedGruppen.length > 0) {
+  const pferdId = inserted.id;
+  const rows = selectedGruppen.map(gruppeId => ({
+    pferd_id: pferdId,
+    gruppe_id: gruppeId,
+    pferd_table: table,
+    user_id: userId
+  }));
+
+  const { error: pgError } = await supabase
+    .from('pferde_gruppen')
+    .insert(rows);
+
+  if (pgError) throw pgError;
+}
+
+
 
     alert(`Pferd erfolgreich gespeichert in ${table}!`)
 
@@ -131,6 +163,11 @@ export default function ImportTest() {
     setZuchtziel('')
     setNotizen('')
     setHengstOrt('')
+    setHengstOrtCustom('');
+
+    // Seite nach oben scrollen
+window.scrollTo({ top: 0, behavior: 'smooth' });
+
 
   } catch (e) {
     setError(e.message)
@@ -145,6 +182,9 @@ const handleReset = () => {
   setFarbgene('');
   setFlaxen(false);
   setRot(false);
+  setHengstOrt('');
+  setHengstOrtCustom('');
+
 
   // Disziplinen
   setD1('');
@@ -163,6 +203,25 @@ const handleReset = () => {
   setResult(null);
   setError(null);
 };
+
+useEffect(() => {
+  const fetchGruppen = async () => {
+    const user = await supabase.auth.getUser();
+    const userId = user.data.user?.id;
+    if (!userId) return;
+
+    const { data, error } = await supabase
+      .from('gruppen')
+      .select('id, name')
+      .eq('user_id', userId);
+
+    if (!error && data) {
+      setGruppen(data);
+    }
+  };
+
+  fetchGruppen();
+}, []);
 
 
   return (
@@ -188,53 +247,107 @@ const handleReset = () => {
 
       <hr />
 
-      <select value={d1} onChange={e=>setD1(e.target.value)}>
-  <option value="">Disziplin 1 auswählen</option>
-  <option value="Barock">Barock</option>
-  <option value="Cross Country">Cross Country</option>
-  <option value="Distanz">Distanz</option>
-  <option value="Dressur">Dressur</option>
-  <option value="Fahren">Fahren</option>
-  <option value="Galopprennen">Galopprennen</option>
-  <option value="Holzrücken">Holzrücken</option>
-  <option value="Mehrgang">Mehrgang</option>
-  <option value="Reining">Reining</option>
-  <option value="Springen">Springen</option>
-  <option value="Trail">Trail</option>
-</select>
-<textarea placeholder="Trainingsseite (copy-paste)" value={t1} onChange={e=>setT1(e.target.value)} rows={6} />
+      {/* Disziplin 1 */}
+<div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+  <select value={d1} onChange={e=>setD1(e.target.value)} style={{ flex: '0 0 200px' }}>
+    <option value="">Disziplin 1 auswählen</option>
+    <option value="Barock">Barock</option>
+    <option value="Cross Country">Cross Country</option>
+    <option value="Distanz">Distanz</option>
+    <option value="Dressur">Dressur</option>
+    <option value="Fahren">Fahren</option>
+    <option value="Galopprennen">Galopprennen</option>
+    <option value="Holzrücken">Holzrücken</option>
+    <option value="Mehrgang">Mehrgang</option>
+    <option value="Reining">Reining</option>
+    <option value="Springen">Springen</option>
+    <option value="Trail">Trail</option>
+  </select>
+  <textarea
+    placeholder="Trainingsseite einbetten (Strg+A), kopieren (Strg+C), einfügen (Strg+V) (copy-paste)"
+    value={t1}
+    onChange={e=>setT1(e.target.value)}
+    rows={3}
+    style={{ flex: 1 }}
+  />
+</div>
 
-<select value={d2} onChange={e=>setD2(e.target.value)}>
-  <option value="">Disziplin 2 auswählen</option>
-  <option value="Barock">Barock</option>
-  <option value="Cross Country">Cross Country</option>
-  <option value="Distanz">Distanz</option>
-  <option value="Dressur">Dressur</option>
-  <option value="Fahren">Fahren</option>
-  <option value="Galopprennen">Galopprennen</option>
-  <option value="Holzrücken">Holzrücken</option>
-  <option value="Mehrgang">Mehrgang</option>
-  <option value="Reining">Reining</option>
-  <option value="Springen">Springen</option>
-  <option value="Trail">Trail</option>
-</select>
-<textarea placeholder="Trainingsseite" value={t2} onChange={e=>setT2(e.target.value)} rows={6} />
+{/* Disziplin 2 */}
+<div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+  <select value={d2} onChange={e=>setD2(e.target.value)} style={{ flex: '0 0 200px' }}>
+    <option value="">Disziplin 2 auswählen</option>
+    <option value="Barock">Barock</option>
+    <option value="Cross Country">Cross Country</option>
+    <option value="Distanz">Distanz</option>
+    <option value="Dressur">Dressur</option>
+    <option value="Fahren">Fahren</option>
+    <option value="Galopprennen">Galopprennen</option>
+    <option value="Holzrücken">Holzrücken</option>
+    <option value="Mehrgang">Mehrgang</option>
+    <option value="Reining">Reining</option>
+    <option value="Springen">Springen</option>
+    <option value="Trail">Trail</option>
+  </select>
+  <textarea
+    placeholder="Trainingsseite einbetten (Strg+A), kopieren (Strg+C), einfügen (Strg+V) (copy-paste)"
+    value={t2}
+    onChange={e=>setT2(e.target.value)}
+    rows={3}
+    style={{ flex: 1 }}
+  />
+</div>
 
-<select value={d3} onChange={e=>setD3(e.target.value)}>
-  <option value="">Disziplin 3 auswählen</option>
-  <option value="Barock">Barock</option>
-  <option value="Cross Country">Cross Country</option>
-  <option value="Distanz">Distanz</option>
-  <option value="Dressur">Dressur</option>
-  <option value="Fahren">Fahren</option>
-  <option value="Galopprennen">Galopprennen</option>
-  <option value="Holzrücken">Holzrücken</option>
-  <option value="Mehrgang">Mehrgang</option>
-  <option value="Reining">Reining</option>
-  <option value="Springen">Springen</option>
-  <option value="Trail">Trail</option>
-</select>
-<textarea placeholder="Trainingsseite" value={t3} onChange={e=>setT3(e.target.value)} rows={6} />
+{/* Disziplin 3 */}
+<div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+  <select value={d3} onChange={e=>setD3(e.target.value)} style={{ flex: '0 0 200px' }}>
+    <option value="">Disziplin 3 auswählen</option>
+    <option value="Barock">Barock</option>
+    <option value="Cross Country">Cross Country</option>
+    <option value="Distanz">Distanz</option>
+    <option value="Dressur">Dressur</option>
+    <option value="Fahren">Fahren</option>
+    <option value="Galopprennen">Galopprennen</option>
+    <option value="Holzrücken">Holzrücken</option>
+    <option value="Mehrgang">Mehrgang</option>
+    <option value="Reining">Reining</option>
+    <option value="Springen">Springen</option>
+    <option value="Trail">Trail</option>
+  </select>
+  <textarea
+    placeholder="Trainingsseite einbetten (Strg+A), kopieren (Strg+C), einfügen (Strg+V) (copy-paste)"
+    value={t3}
+    onChange={e=>setT3(e.target.value)}
+    rows={3}
+    style={{ flex: 1 }}
+  />
+</div>
+
+<hr />
+
+<div style={{ marginBottom: 15 }}>
+  <label>Gruppen:</label>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 5 }}>
+    {gruppen.map(g => (
+      <label key={g.id}>
+        <input
+          type="checkbox"
+          value={g.id}
+          checked={selectedGruppen.includes(g.id)}
+          onChange={e => {
+            if (e.target.checked) {
+              setSelectedGruppen([...selectedGruppen, g.id]);
+            } else {
+              setSelectedGruppen(selectedGruppen.filter(id => id !== g.id));
+            }
+          }}
+        />
+        {g.name}
+      </label>
+    ))}
+  </div>
+</div>
+
+<hr />
 
 
       <hr />
@@ -249,8 +362,61 @@ const handleReset = () => {
       <label>Notizen (optional):</label>
       <textarea value={notizen} onChange={e=>setNotizen(e.target.value)} rows={4} style={{width:'100%', marginBottom:10}} />
 
-      <label>Standort Hengst (nur wenn Hengst):</label>
-      <input value={hengstOrt} onChange={e=>setHengstOrt(e.target.value)} style={{width:'100%', marginBottom:10}} placeholder="Eigener / ZG / HS / frei" />
+      <div style={{ marginBottom: 15 }}>
+  <label>Standort Hengst (nur wenn Hengst):</label>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 5 }}>
+    <label>
+      <input
+        type="radio"
+        name="hengstOrt"
+        value="Eigener Hengst"
+        checked={hengstOrt === "Eigener Hengst"}
+        onChange={e => setHengstOrt(e.target.value)}
+      />
+      Eigener Hengst
+    </label>
+    <label>
+      <input
+        type="radio"
+        name="hengstOrt"
+        value="Hengststation"
+        checked={hengstOrt === "Hengststation"}
+        onChange={e => setHengstOrt(e.target.value)}
+      />
+      Hengststation
+    </label>
+    <label>
+      <input
+        type="radio"
+        name="hengstOrt"
+        value="ZG Hengst"
+        checked={hengstOrt === "ZG Hengst"}
+        onChange={e => setHengstOrt(e.target.value)}
+      />
+      ZG Hengst
+    </label>
+    <label>
+      <input
+        type="radio"
+        name="hengstOrt"
+        value="custom"
+        checked={!["Eigener Hengst","Hengststation","ZG Hengst"].includes(hengstOrt)}
+        onChange={() => setHengstOrt(hengstOrtCustom || '')}
+      />
+      <input
+        type="text"
+        placeholder="Andere Angabe..."
+        value={hengstOrtCustom}
+        onChange={e => {
+          setHengstOrtCustom(e.target.value);
+          setHengstOrt(e.target.value); // direkt ins Hauptfeld übernehmen
+        }}
+        style={{ marginLeft: 8 }}
+      />
+    </label>
+  </div>
+</div>
+
 
 {error && <p style={{ color:'red' }}>{error}</p>}
 
