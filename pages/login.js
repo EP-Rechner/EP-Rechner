@@ -59,7 +59,7 @@ export default function Login() {
     if (!userData?.username) {
       router.push('/set-username')
     } else {
-      router.push('/pferde') // <--- statt "/" direkt zur Pferde-Seite
+      router.push('/dashboard') // <--- statt "/" direkt zur Pferde-Seite
     }
   }
 

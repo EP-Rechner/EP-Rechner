@@ -25,7 +25,7 @@ export default function Home() {
         setUser(session.user)
         // kleiner Delay, damit Session sicher steht
         setTimeout(() => {
-          router.push('/pferde')
+          router.push('/dashboard')
         }, 100)
       } else {
         setUser(null)
@@ -39,7 +39,7 @@ export default function Home() {
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         if (session?.user) {
-          router.push('/pferde')
+          router.push('/dashboard')
         } else {
           setUser(null)
         }
