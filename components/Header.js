@@ -53,30 +53,33 @@ export default function Header() {
   )}
 
   {/* Nur sichtbar wenn eingeloggt */}
-  {session && (
-    <>
-      <Link href="/dashboard" style={{ color: '#fff' }}>Startseite</Link>
-      <Link href="/pferde" style={{ color: '#fff' }}>Pferdeübersicht</Link>
-      <Link href="/import" style={{ color: '#fff' }}>Eintragen</Link>
-      <Link href="/verpaaren" style={{ color: '#fff' }}>Zucht</Link>
-      <Link href="/verpaarungen" style={{ color: '#fff' }}>Gespeicherte Zucht</Link>
-      <Link href="/forum" style={{ color: '#fff' }}>Forum</Link>
-      <button
-        onClick={handleLogout}
-        disabled={loggingOut}
-        style={{
-          background: 'transparent',
-          color: '#fff',
-          border: '1px solid #fff',
-          padding: '4px 10px',
-          borderRadius: 4,
-          cursor: 'pointer'
-        }}
-      >
-        {loggingOut ? 'Abmelden…' : 'Logout'}
-      </button>
-    </>
-  )}
+  {/* Nur sichtbar wenn eingeloggt */}
+{session && (
+  <>
+    <Link href="/dashboard" style={{ color: '#fff' }}>Startseite</Link>
+    <Link href="/pferde" style={{ color: '#fff' }}>Pferdeübersicht</Link>
+    <Link href="/import" style={{ color: '#fff' }}>Eintragen</Link>
+    <Link href="/verpaaren" style={{ color: '#fff' }}>Zucht</Link>
+    <Link href="/verpaarungen" style={{ color: '#fff' }}>Gespeicherte Zucht</Link>
+    <Link href="/forum" style={{ color: '#fff' }}>Forum</Link>
+    <Link href="/mitglieder" style={{ color: '#fff' }}>Mitglieder</Link>
+    <Link href={`/profil/${session.user.id}`} style={{ color: '#fff' }}>Profil</Link>
+    <button
+      onClick={handleLogout}
+      disabled={loggingOut}
+      style={{
+        background: 'transparent',
+        color: '#fff',
+        border: '1px solid #fff',
+        padding: '4px 10px',
+        borderRadius: 4,
+        cursor: 'pointer'
+      }}
+    >
+      {loggingOut ? 'Abmelden…' : 'Logout'}
+    </button>
+  </>
+)}
 </nav>
 
     </header>

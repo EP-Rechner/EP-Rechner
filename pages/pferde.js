@@ -4,6 +4,8 @@ import Link from "next/link";
 import { supabase } from "../lib/supabaseClient";
 import { buildGroupMap } from "../lib/utils.mjs";
 
+const NO_GROUP = "__NO_GROUP__"; // Auswahl für "Pferde ohne Gruppe"
+
 export default function Pferde() {
   const [hengste, setHengste] = useState([]);
   const [stuten, setStuten] = useState([]);
@@ -47,9 +49,23 @@ export default function Pferde() {
   });
 
   // Pagination (NEU)
-  const [pageSize, setPageSize] = useState(25);       // gilt für beide Tabellen
+  const [pageSize, setPageSize] = useState(() => {
+  if (typeof window !== "undefined") {
+    const saved = localStorage.getItem("pferde_page_size");
+    return saved ? Number(saved) : 25;
+  }
+  return 25;
+});
+
   const [pageHengste, setPageHengste] = useState(1);  // Seite für Hengste
   const [pageStuten, setPageStuten] = useState(1);    // Seite für Stuten
+
+
+useEffect(() => {
+  // bei Änderung: speichern
+  localStorage.setItem("pferde_page_size", String(pageSize));
+}, [pageSize]);
+
 
 
   // ---- Gruppen-Modal (Mehrfachauswahl von Gruppen) ----
@@ -558,12 +574,20 @@ const { subscription } = supabase.auth.onAuthStateChange((event, session) => {
   };
 
   // ---------- Filter nach Gruppe ----------
-  const isInSelectedGroup = (table, id) => {
-    if (selectedGroup === "all") return true;
-    const key = `${table}:${id}`;
-    const set = groupMap.get(key);
-    return set ? set.has(selectedGroup) : false;
-  };
+ const isInSelectedGroup = (table, id) => {
+  if (selectedGroup === "all") return true;
+
+  const key = `${table}:${id}`;
+  const set = groupMap.get(key); // Set(gruppe_id) | undefined
+
+  if (selectedGroup === NO_GROUP) {
+    // Nur Pferde ohne irgendeine Gruppen-Zuordnung
+    return !set || set.size === 0;
+  }
+
+  return set ? set.has(selectedGroup) : false;
+};
+
 
   const filterRowsByGroup = (rows, table) => {
     if (selectedGroup === "all") return rows;
@@ -614,26 +638,69 @@ const pageRows = filtered.slice(start, end);
               </tfoot>
             </table>
             <div className="pagination">
+  {/* Erste Seite */}
+  <button
+    className="btn"
+    onClick={() => setPage(1)}
+    disabled={currentPage === 1}
+    title="Zur ersten Seite"
+  >
+    ⏮ Erste
+  </button>
+
+  {/* Zurück */}
   <button
     className="btn"
     onClick={() => setPage(Math.max(1, currentPage - 1))}
     disabled={currentPage <= 1}
+    title="Vorherige Seite"
   >
     ◀️ Zurück
   </button>
 
+  {/* Seitenanzeige + Dropdown */}
   <span className="page-indicator">
-    Seite {currentPage} / {totalPages} — {totalRows} Einträge
+    Seite&nbsp;
+    <select
+      value={currentPage}
+      onChange={(e) => setPage(Number(e.target.value))}
+      style={{
+        padding: "2px 6px",
+        borderRadius: "6px",
+        border: "1px solid #ccc",
+        background: "#fff",
+      }}
+    >
+      {Array.from({ length: totalPages }, (_, i) => (
+        <option key={i + 1} value={i + 1}>
+          {i + 1}
+        </option>
+      ))}
+    </select>
+    &nbsp;/ {totalPages} — {totalRows} Einträge
   </span>
 
+  {/* Weiter */}
   <button
     className="btn"
     onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
     disabled={currentPage >= totalPages}
+    title="Nächste Seite"
   >
     Weiter ▶️
   </button>
+
+  {/* Letzte Seite */}
+  <button
+    className="btn"
+    onClick={() => setPage(totalPages)}
+    disabled={currentPage === totalPages}
+    title="Zur letzten Seite"
+  >
+    Letzte ⏭
+  </button>
 </div>
+
 
 
           </div>
@@ -722,26 +789,47 @@ const pageRows = filtered.slice(start, end);
                       />
                     </td>
                     {columns.map((col) => {
-                      const value =
-                        row[col] !== null && row[col] !== undefined
-                          ? row[col].toString()
-                          : "";
-                      if (col.toLowerCase() === "name") {
-                        return (
-                          <td key={col}>
-                            <Link
-                              href={{
-                                pathname: `/pferd/${row.id}`,
-                                query: { table },
-                              }}
-                            >
-                              {value}
-                            </Link>
-                          </td>
-                        );
-                      }
-                      return <td key={col}>{value}</td>;
-                    })}
+  const value =
+    row[col] !== null && row[col] !== undefined
+      ? row[col].toString()
+      : "";
+
+  // 🐴 Name bleibt interner Link
+  if (col.toLowerCase() === "name") {
+    return (
+      <td key={col}>
+        <Link
+          href={{
+            pathname: `/pferd/${row.id}`,
+            query: { table },
+          }}
+        >
+          {value}
+        </Link>
+      </td>
+    );
+  }
+
+  // 🌐 Link-Spalte → klickbarer externer Link im neuen Tab
+  if (col.toLowerCase() === "link") {
+    const url = value.startsWith("http") ? value : `https://${value}`;
+    return (
+      <td key={col}>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "#2563eb", textDecoration: "underline" }}
+        >
+          {value}
+        </a>
+      </td>
+    );
+  }
+
+  return <td key={col}>{value}</td>;
+})}
+
                     <td>{rowGroupNames.length ? rowGroupNames.join(", ") : "—"}</td>
                   </tr>
                 );
@@ -755,26 +843,69 @@ const pageRows = filtered.slice(start, end);
           </table>
         </div>
         <div className="pagination">
+  {/* Erste Seite */}
+  <button
+    className="btn"
+    onClick={() => setPage(1)}
+    disabled={currentPage === 1}
+    title="Zur ersten Seite"
+  >
+    ⏮ Erste
+  </button>
+
+  {/* Zurück */}
   <button
     className="btn"
     onClick={() => setPage(Math.max(1, currentPage - 1))}
     disabled={currentPage <= 1}
+    title="Vorherige Seite"
   >
     ◀️ Zurück
   </button>
 
+  {/* Seitenanzeige + Dropdown */}
   <span className="page-indicator">
-    Seite {currentPage} / {totalPages} — {totalRows} Einträge
+    Seite&nbsp;
+    <select
+      value={currentPage}
+      onChange={(e) => setPage(Number(e.target.value))}
+      style={{
+        padding: "2px 6px",
+        borderRadius: "6px",
+        border: "1px solid #ccc",
+        background: "#fff",
+      }}
+    >
+      {Array.from({ length: totalPages }, (_, i) => (
+        <option key={i + 1} value={i + 1}>
+          {i + 1}
+        </option>
+      ))}
+    </select>
+    &nbsp;/ {totalPages} — {totalRows} Einträge
   </span>
 
+  {/* Weiter */}
   <button
     className="btn"
     onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
     disabled={currentPage >= totalPages}
+    title="Nächste Seite"
   >
     Weiter ▶️
   </button>
+
+  {/* Letzte Seite */}
+  <button
+    className="btn"
+    onClick={() => setPage(totalPages)}
+    disabled={currentPage === totalPages}
+    title="Zur letzten Seite"
+  >
+    Letzte ⏭
+  </button>
 </div>
+
 
       </section>
     );
@@ -807,21 +938,23 @@ const pageRows = filtered.slice(start, end);
             <button onClick={handleCreateGroup}>Gruppe erstellen</button>
 
             <select
-              value={selectedGroup}
-              onChange={(e) => {
-                setSelectedGroup(e.target.value);
-                setPageHengste(1);
-                setPageStuten(1);
-              }}
-              title="Nur eine Gruppe anzeigen"
-            >
-              <option value="all">Alle anzeigen</option>
-              {gruppen.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
-                </option>
-              ))}
-            </select>
+  value={selectedGroup}
+  onChange={(e) => {
+    setSelectedGroup(e.target.value);
+    setPageHengste(1);
+    setPageStuten(1);
+  }}
+  title="Nur eine Gruppe anzeigen"
+>
+  <option value="all">Alle anzeigen</option>
+  <option value={NO_GROUP}>Pferde ohne Gruppe</option>  {/* 👈 neu */}
+  {gruppen.map((g) => (
+    <option key={g.id} value={g.id}>
+      {g.name}
+    </option>
+  ))}
+</select>
+
             <div className="page-size">
   <label>pro Seite:&nbsp;</label>
   <select
@@ -844,19 +977,20 @@ const pageRows = filtered.slice(start, end);
 
           </div>
 
-                      {selectedGroup !== "all" && (
-              <>
-                <button onClick={() => handleRenameGroup(selectedGroup)}>
-                  Gruppe umbenennen
-                </button>
-                <button
-                  className="btn danger"
-                  onClick={() => handleDeleteGroup(selectedGroup)}
-                >
-                  Gruppe löschen
-                </button>
-              </>
-            )}
+                      {selectedGroup !== "all" && selectedGroup !== NO_GROUP && (
+  <>
+    <button onClick={() => handleRenameGroup(selectedGroup)}>
+      Gruppe umbenennen
+    </button>
+    <button
+      className="btn danger"
+      onClick={() => handleDeleteGroup(selectedGroup)}
+    >
+      Gruppe löschen
+    </button>
+  </>
+)}
+
 
 
           {loading && <p>Lade...</p>}
