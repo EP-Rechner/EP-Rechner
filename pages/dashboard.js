@@ -19,20 +19,32 @@ export default function Dashboard() {
 
   const router = useRouter();
 
-  // Einstellungen aus localStorage lesen
-  useEffect(() => {
-    const latest = localStorage.getItem("showLatest");
-    const unread = localStorage.getItem("showUnread");
-    const top = localStorage.getItem("showTopVoted");
-    if (latest !== null) setShowLatest(latest === "true");
-    if (unread !== null) setShowUnread(unread === "true");
-    if (top !== null) setShowTopVoted(top === "true");
-  }, []);
+// Einstellungen pro User speichern/lesen
+useEffect(() => {
+  if (!user) return;
 
-  // Änderungen speichern
-  useEffect(() => { localStorage.setItem("showLatest", showLatest); }, [showLatest]);
-  useEffect(() => { localStorage.setItem("showUnread", showUnread); }, [showUnread]);
-  useEffect(() => { localStorage.setItem("showTopVoted", showTopVoted); }, [showTopVoted]);
+  const uid = user.id;
+  const latest = localStorage.getItem(`showLatest_${uid}`);
+  const unread = localStorage.getItem(`showUnread_${uid}`);
+  const top = localStorage.getItem(`showTopVoted_${uid}`);
+
+  if (latest !== null) setShowLatest(latest === "true");
+  if (unread !== null) setShowUnread(unread === "true");
+  if (top !== null) setShowTopVoted(top === "true");
+}, [user]);
+
+useEffect(() => {
+  if (user) localStorage.setItem(`showLatest_${user.id}`, showLatest);
+}, [showLatest, user]);
+
+useEffect(() => {
+  if (user) localStorage.setItem(`showUnread_${user.id}`, showUnread);
+}, [showUnread, user]);
+
+useEffect(() => {
+  if (user) localStorage.setItem(`showTopVoted_${user.id}`, showTopVoted);
+}, [showTopVoted, user]);
+
 
   useEffect(() => {
     const init = async () => {
@@ -123,151 +135,263 @@ export default function Dashboard() {
 
   return (
     <div style={{ padding: "20px" }}>
+      <div className="forum-table-container">
+      <h1 className="forum-table-welcome"></h1>
       <h1>Willkommen {username ? username : "..."} </h1>
-
-      {/* Toggle Buttons */}
-      <div style={{ marginBottom: 20, display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <button onClick={() => setShowLatest(s => !s)}>
-          {showLatest ? "Neueste Threads ausblenden" : "Neueste Threads einblenden"}
-        </button>
-        <button onClick={() => setShowUnread(s => !s)}>
-          {showUnread ? "Ungelesene Threads ausblenden" : "Ungelesene Threads einblenden"}
-        </button>
-        <button onClick={() => setShowTopVoted(s => !s)}>
-          {showTopVoted ? "Top Wünsche & Anregungen ausblenden" : "Top Wünsche & Anregungen einblenden"}
-        </button>
       </div>
 
       {/* Neueste Threads */}
-      {showLatest && (
         <>
-          <h2 style={{ marginTop: 24 }}>Neueste Threads</h2>
-          <table className="forum-table">
-            <thead>
-              <tr>
-                <th>Titel</th>
-                <th>Kategorie</th>
-                <th>Letzte Aktivität</th>
-              </tr>
-            </thead>
-            <tbody>
-              {latestThreads.length === 0 && (
-                <tr><td colSpan={3}>Keine Threads vorhanden</td></tr>
-              )}
-              {latestThreads.map((t) => (
-                <tr key={t.id}>
-                  <td>
-                    <Link href={`/forum/thread/${t.id}`}>
-                      {unreadIds.has(t.id) && <span style={{ color: "orange", fontWeight: "bold", marginRight: 6 }}>NEU</span>}
-                      {t.is_pinned && <span style={{ marginRight: 4 }}>📌</span>}
-                      {t.locked && <span style={{ marginRight: 4 }}>🔒</span>}
-                      {t.done && <span style={{ color: "green", marginRight: 4 }}>✅</span>}
-                      {t.title}
-                    </Link>
-                  </td>
-                  <td>{t.category?.name}</td>
-                  <td>{new Date(t.created_at).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="forum-table-container">
+  <div className="forum-table-header">
+    <h2 className="forum-table-title">Neueste Threads</h2>
+    <button
+      className="toggle-btn"
+      onClick={() => setShowLatest((s) => !s)}
+    >
+      {showLatest ? "Ausblenden" : "Einblenden"}
+    </button>
+  </div>
+
+  {/* Tabelle bleibt sichtbar/nicht sichtbar */}
+  {showLatest ? (
+    <table className="forum-table">
+      <thead>
+        <tr>
+          <th>Titel</th>
+          <th>Kategorie</th>
+          <th>Letzte Aktivität</th>
+        </tr>
+      </thead>
+      <tbody>
+        {latestThreads.length === 0 && (
+          <tr><td colSpan={3}>Keine Threads vorhanden</td></tr>
+        )}
+        {latestThreads.map((t) => (
+          <tr key={t.id}>
+            <td>
+              <Link href={`/forum/thread/${t.id}`}>
+                {unreadIds.has(t.id) && (
+                  <span style={{ color: "orange", fontWeight: "bold", marginRight: 6 }}>NEU</span>
+                )}
+                {t.is_pinned && <span style={{ marginRight: 4 }}>📌</span>}
+                {t.locked && <span style={{ marginRight: 4 }}>🔒</span>}
+                {t.done && <span style={{ color: "green", marginRight: 4 }}>✅</span>}
+                {t.title}
+              </Link>
+            </td>
+            <td>{t.category?.name}</td>
+            <td>{new Date(t.created_at).toLocaleString()}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  ) : (
+    <p style={{ color: "#555", marginTop: "8px" }}>Tabelle ausgeblendet.</p>
+  )}
+</div>
         </>
-      )}
+
 
       {/* Ungelesene Threads */}
-      {showUnread && (
         <>
-          <h2 style={{ marginTop: 24 }}>Ungelesene Threads</h2>
-          <table className="forum-table">
-            <thead>
-              <tr>
-                <th>Titel</th>
-                <th>Kategorie</th>
-                <th>Letzte Aktivität</th>
-              </tr>
-            </thead>
-            <tbody>
-              {unreadThreads.length === 0 && (
-                <tr><td colSpan={3}>Keine ungelesenen Threads</td></tr>
-              )}
-              {unreadThreads.map((t) => (
-                <tr key={t.id}>
-                  <td>
-                    <Link href={`/forum/thread/${t.id}`}>
-                      <span style={{ color: "orange", fontWeight: "bold", marginRight: 6 }}>NEU</span>
-                      {t.is_pinned && <span style={{ marginRight: 4 }}>📌</span>}
-                      {t.locked && <span style={{ marginRight: 4 }}>🔒</span>}
-                      {t.done && <span style={{ color: "green", marginRight: 4 }}>✅</span>}
-                      {t.title}
-                    </Link>
-                  </td>
-                  <td>{t.category?.name}</td>
-                  <td>{new Date(t.last_activity).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="forum-table-container">
+  <div className="forum-table-header">
+    <h2 className="forum-table-title">Ungelesene Threads</h2>
+    <button
+      className="toggle-btn"
+      onClick={() => setShowUnread((s) => !s)}
+    >
+      {showUnread ? "Ausblenden" : "Einblenden"}
+    </button>
+  </div>
+
+  {showUnread ? (
+    <table className="forum-table">
+      <thead>
+        <tr>
+          <th>Titel</th>
+          <th>Kategorie</th>
+          <th>Letzte Aktivität</th>
+        </tr>
+      </thead>
+      <tbody>
+        {unreadThreads.length === 0 && (
+          <tr><td colSpan={3}>Keine ungelesenen Threads</td></tr>
+        )}
+        {unreadThreads.map((t) => (
+          <tr key={t.id}>
+            <td>
+              <Link href={`/forum/thread/${t.id}`}>
+                <span style={{ color: "orange", fontWeight: "bold", marginRight: 6 }}>NEU</span>
+                {t.is_pinned && <span style={{ marginRight: 4 }}>📌</span>}
+                {t.locked && <span style={{ marginRight: 4 }}>🔒</span>}
+                {t.done && <span style={{ color: "green", marginRight: 4 }}>✅</span>}
+                {t.title}
+              </Link>
+            </td>
+            <td>{t.category?.name}</td>
+            <td>{new Date(t.last_activity).toLocaleString()}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  ) : (
+    <p style={{ color: "#555", marginTop: "8px" }}>Tabelle ausgeblendet.</p>
+  )}
+</div>
         </>
-      )}
+
 
       {/* Top Wünsche & Anregungen */}
-      {showTopVoted && (
         <>
-          <h2 style={{ marginTop: 24 }}>Top 10 Wünsche & Anregungen</h2>
-          <table className="forum-table">
-            <thead>
-              <tr>
-                <th>Thread</th>
-                <th>Punkte</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topVoted.length === 0 && (
-                <tr><td colSpan={2}>Keine Threads vorhanden</td></tr>
-              )}
-              {topVoted.map((t) => (
-                <tr key={t.id}>
-                  <td>
-                    <Link href={`/forum/thread/${t.id}`}>
-                      {t.is_pinned && <span style={{ marginRight: 4 }}>📌</span>}
-                      {t.locked && <span style={{ marginRight: 4 }}>🔒</span>}
-                      {t.done && <span style={{ color: "green", marginRight: 4 }}>✅</span>}
-                      {t.title}
-                    </Link>
-                  </td>
-                  <td>{t.score}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
+          <div className="forum-table-container">
+  <div className="forum-table-header">
+    <h2 className="forum-table-title">Top 10 Wünsche & Anregungen</h2>
+    <button
+      className="toggle-btn"
+      onClick={() => setShowTopVoted((s) => !s)}
+    >
+      {showTopVoted ? "Ausblenden" : "Einblenden"}
+    </button>
+  </div>
 
-      <style jsx>{`
-        .forum-table {
-          width: 100%;
-          margin-top: 12px;
-          border-collapse: collapse;
-          background: #fff;
-        }
-        .forum-table th,
-        .forum-table td {
-          border: 1px solid #e5e7eb;
-          padding: 8px 10px;
-          vertical-align: middle;
-        }
-        .forum-table th {
-          background: #f9fafb;
-        }
-        .forum-table tr:nth-child(even) {
-          background: #fafafa;
-        }
-        /* Alle außer die erste Spalte zentrieren */
-        .forum-table th:not(:first-child),
-        .forum-table td:not(:first-child) {
-          text-align: center;
-        }
-      `}</style>
+  {showTopVoted ? (
+    <table className="forum-table">
+      <thead>
+        <tr>
+          <th>Thread</th>
+          <th>Punkte</th>
+        </tr>
+      </thead>
+      <tbody>
+        {topVoted.length === 0 && (
+          <tr><td colSpan={2}>Keine Threads vorhanden</td></tr>
+        )}
+        {topVoted.map((t) => (
+          <tr key={t.id}>
+            <td>
+              <Link href={`/forum/thread/${t.id}`}>
+                {t.is_pinned && <span style={{ marginRight: 4 }}>📌</span>}
+                {t.locked && <span style={{ marginRight: 4 }}>🔒</span>}
+                {t.done && <span style={{ color: "green", marginRight: 4 }}>✅</span>}
+                {t.title}
+              </Link>
+            </td>
+            <td>{t.score}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  ) : (
+    <p style={{ color: "#555", marginTop: "8px" }}>Tabelle ausgeblendet.</p>
+  )}
+</div>
+        </>
+
+     <style jsx>{`
+  .forum-table-container {
+    width: 75%;
+    margin: 0 auto;
+  }
+
+  .forum-table {
+    width: 100%;
+    margin-top: 16px;
+    border-collapse: collapse;
+    table-layout: fixed;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    overflow: hidden;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  }
+
+  .forum-table thead tr {
+    background: #34495e;
+    color: white;
+  }
+
+  .forum-table th {
+    padding: 12px 16px;
+    font-weight: 600;
+    border-right: 2px solid #d1d5db;
+  }
+
+  .forum-table td {
+    padding: 10px 16px;
+    border-top: 1px solid #e5e7eb;
+    border-right: 2px solid #e5e7eb;
+    background: #fff;
+    transition: background 0.2s ease-in-out;
+  }
+
+  .forum-table tr:hover td {
+    background: #f9fafb;
+  }
+
+  .forum-table th:not(:first-child),
+  .forum-table td:not(:first-child) {
+    text-align: center;
+  }
+
+  .forum-table a {
+    color: #2c3e50;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  .forum-table a:hover {
+    text-decoration: underline !important;
+  }
+
+  .forum-table a:visited,
+  .forum-table a:active,
+  .forum-table a:focus {
+    color: #2c3e50 !important;
+  }
+    .forum-table-title {
+  margin-top: 24px;
+  margin-bottom: 8px;
+  font-size: 20px;
+  font-weight: 600;
+  color: #000000ff;
+  text-align: left;   /* ganz links innerhalb des Containers */
+}
+.forum-table-welcome {
+  margin-top: 10px;
+  margin-bottom: 24px;
+  font-size: 24px;
+  font-weight: 600;
+  color: #000; /* Schwarz */
+  text-align: left; /* bündig mit Tabellen */
+}
+.forum-table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 24px;
+  margin-bottom: 8px;
+}
+
+.toggle-btn {
+  background: #34495e;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  transition: background 0.2s ease-in-out;
+}
+
+.toggle-btn:hover {
+  background: #3f5875;
+}
+
+`}</style>
     </div>
   );
 }

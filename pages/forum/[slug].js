@@ -1,134 +1,105 @@
 // pages/forum/[slug].js
-import { useRouter } from 'next/router'
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { supabase } from '../../lib/supabaseClient'
+import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { supabase } from "../../lib/supabaseClient";
 
 export default function ForumCategory() {
-  const router = useRouter()
-  const { slug } = router.query
+  const router = useRouter();
+  const { slug } = router.query;
 
-  const [cat, setCat] = useState(null)
-  const [allCats, setAllCats] = useState([])
-  const [threads, setThreads] = useState([])
-  const [session, setSession] = useState(null)
+  const [cat, setCat] = useState(null);
+  const [allCats, setAllCats] = useState([]);
+  const [threads, setThreads] = useState([]);
+  const [session, setSession] = useState(null);
   const [selectedThreads, setSelectedThreads] = useState([]);
-  const [me, setMe] = useState(null) // mitglieder row (Username, role)
+  const [me, setMe] = useState(null);
+  const [moveTargetThreads, setMoveTargetThreads] = useState([]);
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [errorMsg, setErrorMsg] = useState(null);
+    // Modal States & Kategorien
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [selectedCatId, setSelectedCatId] = useState("");
 
-  // Modal State
-  const [showMoveModal, setShowMoveModal] = useState(false)
-  const [moveTargetThreads, setMoveTargetThreads] = useState([])
-  const [selectedCatId, setSelectedCatId] = useState("")
 
-  // Form state
-  const [title, setTitle] = useState('')
-  const [content, setContent] = useState('')
-  const [errorMsg, setErrorMsg] = useState(null)
+  const role = (me?.role || "").toLowerCase();
+  const isAdmin = role === "admin";
+  const isMod = isAdmin || role === "moderator";
 
-  // Role helpers
-  const role = (me?.role || '').toLowerCase()
-  const isAdmin = role === 'admin'
-  const isMod   = isAdmin || role === 'moderator'
-
-  // Lade User + Session
+  // Session laden
   useEffect(() => {
     const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      setSession(session || null)
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session || null);
       if (session?.user) {
         const { data: meRow } = await supabase
-          .from('mitglieder')
-          .select('username, role')
-          .eq('id', session.user.id)
-          .single()
-        setMe(meRow || null)
+          .from("mitglieder")
+          .select("username, role")
+          .eq("id", session.user.id)
+          .single();
+        setMe(meRow || null);
       }
-    }
-    init()
-  }, [])
+    };
+    init();
+  }, []);
 
-  // Lade Kategorien für das Verschiebe-Dropdown (außer Ankündigungen)
+  // Kategorien laden
   useEffect(() => {
     const loadCats = async () => {
       const { data } = await supabase
         .from("forum_categories")
         .select("id, name, slug")
         .neq("slug", "ankuendigungen")
-        .order("name")
-      setAllCats(data || [])
-    }
-    loadCats()
-  }, [])
+        .order("name");
+      setAllCats(data || []);
+    };
+    loadCats();
+  }, []);
 
-  // Lade Kategorie + Threads
+  // Kategorie + Threads laden
   useEffect(() => {
     if (!slug) return;
-
     const load = async () => {
-      const { data: category, error: catErr } = await supabase
-        .from('forum_categories')
-        .select('*')
-        .eq('slug', slug)
+      const { data: category } = await supabase
+        .from("forum_categories")
+        .select("*")
+        .eq("slug", slug)
         .single();
-
-      if (catErr) {
-        console.error(catErr);
-        setCat(null);
-        setThreads([]);
-        return;
-      }
-
       setCat(category || null);
 
-      const { data: rows, error: thrErr } = await supabase
-        .from('forum_threads')
+      const { data: rows } = await supabase
+        .from("forum_threads")
         .select(`
           id, title, created_at, author_id, locked, is_pinned, done,
           author:mitglieder!forum_threads_author_id_fkey ( username, role )
         `)
-        .eq('category_id', category.id);
+        .eq("category_id", category.id);
 
-      if (thrErr) {
-        console.error(thrErr);
-        return;
-      }
+      const { data: stats } = await supabase.from("forum_thread_stats").select("*");
+      const statMap = new Map(stats?.map((s) => [s.thread_id, s]));
 
-      const { data: stats } = await supabase
-        .from('forum_thread_stats')
-        .select('*');
-
-      const statMap = new Map(stats?.map(s => [s.thread_id, s]));
-
-      // ✅ Reads nur laden, wenn eingeloggt
       let readMap = new Map();
       if (session?.user) {
         const { data: reads } = await supabase
           .from("forum_thread_reads")
           .select("thread_id, last_read_at")
           .eq("user_id", session.user.id);
-
-        readMap = new Map(reads?.map(r => [r.thread_id, r.last_read_at]));
+        readMap = new Map(reads?.map((r) => [r.thread_id, r.last_read_at]));
       }
 
-      // Threads mit Stats und isNew
-      const merged = (rows || []).map(r => {
-        const stats = statMap.get(r.id) || {};
+      const merged = (rows || []).map((r) => {
+        const s = statMap.get(r.id) || {};
         const lastRead = readMap.get(r.id);
-        const lastActivity = new Date(stats.last_post_at || r.created_at);
+        const lastActivity = new Date(s.last_post_at || r.created_at);
         const isNew = !lastRead || new Date(lastRead) < lastActivity;
-
-        return {
-          ...r,
-          stats,
-          isNew
-        };
+        return { ...r, stats: s, isNew };
       });
 
-      // Sortierung
       merged.sort((a, b) => {
         if (a.is_pinned && !b.is_pinned) return -1;
         if (!a.is_pinned && b.is_pinned) return 1;
-
         const dateA = new Date(a.stats.last_post_at || a.created_at);
         const dateB = new Date(b.stats.last_post_at || b.created_at);
         return dateB - dateA;
@@ -136,192 +107,153 @@ export default function ForumCategory() {
 
       setThreads(merged);
     };
-
     load();
-  }, [slug, session]); // session drin lassen, damit Reads berücksichtigt werden
+  }, [slug, session]);
 
-  // Berechtigung Threads zu erstellen
+  // Thread-Aktion (Admin/Mod)
+const handleThreadAction = async (threadId, action, extra) => {
+  try {
+    if (action === "pin")    await supabase.from("forum_threads").update({ is_pinned: true }).eq("id", threadId);
+    if (action === "unpin")  await supabase.from("forum_threads").update({ is_pinned: false }).eq("id", threadId);
+    if (action === "lock")   await supabase.from("forum_threads").update({ locked: true }).eq("id", threadId);
+    if (action === "unlock") await supabase.from("forum_threads").update({ locked: false }).eq("id", threadId);
+    if (action === "done")   await supabase.from("forum_threads").update({ done: true }).eq("id", threadId);
+    if (action === "undone") await supabase.from("forum_threads").update({ done: false }).eq("id", threadId);
+    if (action === "move")   await supabase.from("forum_threads").update({ category_id: extra }).eq("id", threadId);
+    if (action === "delete") await supabase.from("forum_threads").delete().eq("id", threadId);
+
+    // Threads nach Aktion neu laden
+    const { data: rows } = await supabase
+      .from("forum_threads")
+      .select(`
+        id, title, created_at, author_id, locked, is_pinned, done,
+        author:mitglieder!forum_threads_author_id_fkey ( username, role )
+      `)
+      .eq("category_id", cat.id);
+
+    const { data: stats } = await supabase.from("forum_thread_stats").select("*");
+    const statMap = new Map(stats?.map((s) => [s.thread_id, s]));
+    const merged = (rows || []).map((r) => ({ ...r, stats: statMap.get(r.id) || {} }));
+    setThreads(merged);
+  } catch (err) {
+    alert("Fehler: " + err.message);
+  }
+};
+
   const canCreateInThisCategory =
-    !!session?.user && (
-      !cat?.slug ||
-      cat.slug.toLowerCase() !== 'ankuendigungen' ||
-      (me?.role && me.role.toLowerCase() === 'admin')
-    )
+    !!session?.user &&
+    (!cat?.slug ||
+      cat.slug.toLowerCase() !== "ankuendigungen" ||
+      (me?.role && me.role.toLowerCase() === "admin"));
 
-  // Thread erstellen
   const createThread = async (e) => {
-    e.preventDefault()
-    setErrorMsg(null)
-    if (!session?.user) {
-      setErrorMsg('Bitte einloggen.')
-      return
-    }
-    if (!canCreateInThisCategory) {
-      setErrorMsg('Nur Admins können in "Ankündigungen" neue Threads erstellen.')
-      return
-    }
-    if (!title.trim() || !content.trim()) {
-      setErrorMsg('Titel und Inhalt dürfen nicht leer sein.')
-      return
-    }
+    e.preventDefault();
+    setErrorMsg(null);
+    if (!session?.user) return setErrorMsg("Bitte einloggen.");
+    if (!canCreateInThisCategory)
+      return setErrorMsg('Nur Admins können in "Ankündigungen" neue Threads erstellen.');
+    if (!title.trim() || !content.trim())
+      return setErrorMsg("Titel und Inhalt dürfen nicht leer sein.");
 
     const { data: thread, error: tErr } = await supabase
-      .from('forum_threads')
+      .from("forum_threads")
       .insert({
         category_id: cat.id,
         title: title.trim(),
-        author_id: session.user.id
-      })
-      .select('*')
-      .single()
-    if (tErr) { setErrorMsg(tErr.message); return }
-
-    const { error: pErr } = await supabase
-      .from('forum_posts')
-      .insert({
-        thread_id: thread.id,
         author_id: session.user.id,
-        content: content.trim()
       })
-    if (pErr) { setErrorMsg(pErr.message); return }
+      .select("*")
+      .single();
+    if (tErr) return setErrorMsg(tErr.message);
 
-    // Beim Erstellen direkt als gelesen markieren
-    await supabase.from("forum_thread_reads").upsert({
-      user_id: session.user.id,
+    await supabase.from("forum_posts").insert({
       thread_id: thread.id,
-      last_read_at: new Date().toISOString()
-    }, { onConflict: 'user_id,thread_id' });
+      author_id: session.user.id,
+      content: content.trim(),
+    });
 
-    router.push(`/forum/thread/${thread.id}`)
-  }
-
-  // Thread pin/unpin
-  const togglePin = async (thread) => {
-    try {
-      const { error } = await supabase
-        .from('forum_threads')
-        .update({ is_pinned: !thread.is_pinned })
-        .eq('id', thread.id)
-      if (error) throw error
-
-      const { data, error: reloadErr } = await supabase
-        .from('forum_threads')
-        .select(`
-          id, title, created_at, author_id, locked, is_pinned,
-          author:mitglieder!forum_threads_author_id_fkey ( username, role )
-        `)
-        .eq('category_id', cat.id)
-        .order('is_pinned', { ascending: false })
-        .order('created_at', { ascending: false })
-      if (reloadErr) throw reloadErr
-      setThreads(data || [])
-    } catch (e) {
-      alert(e.message)
-    }
-  }
-
-  // Thread verschieben
-  const moveThread = async (threadId, newCategoryId) => {
-    try {
-      const { error } = await supabase
-        .from('forum_threads')
-        .update({ category_id: newCategoryId })
-        .eq('id', threadId)
-      if (error) throw error
-      setThreads(prev => prev.filter(t => t.id !== threadId))
-    } catch (e) {
-      alert(e.message)
-    }
-  }
-
-  // Thread löschen
-  const deleteThread = async (threadId) => {
-    if (!confirm('Thread wirklich löschen?')) return
-    const { error } = await supabase
-      .from('forum_threads')
-      .delete()
-      .eq('id', threadId)
-    if (error) return alert(error.message)
-    setThreads(prev => prev.filter(t => t.id !== threadId))
-  }
-
-  // Thread-Action Dropdown (oben, für Mehrfachauswahl)
-  const handleThreadAction = async (threadId, action, newCategoryId = null) => {
-    try {
-      if (action === "pin") {
-        await supabase.from("forum_threads").update({ is_pinned: true }).eq("id", threadId);
-      }
-      if (action === "unpin") {
-        await supabase.from("forum_threads").update({ is_pinned: false }).eq("id", threadId);
-      }
-      if (action === "lock") {
-        await supabase.from("forum_threads").update({ locked: true }).eq("id", threadId);
-      }
-      if (action === "unlock") {
-        await supabase.from("forum_threads").update({ locked: false }).eq("id", threadId);
-      }
-      if (action === "done") {
-        await supabase.from("forum_threads").update({ done: true }).eq("id", threadId);
-      }
-      if (action === "undone") {
-        await supabase.from("forum_threads").update({ done: false }).eq("id", threadId);
-      }
-
-      if (action === "delete") {
-        await supabase.from("forum_threads").delete().eq("id", threadId);
-        setThreads(prev => prev.filter(t => t.id !== threadId));
-        return;
-      }
-      if (action === "move" && newCategoryId) {
-        await supabase.from("forum_threads").update({ category_id: newCategoryId }).eq("id", threadId);
-        setThreads(prev => prev.filter(t => t.id !== threadId));
-        return;
-      }
-
-      // Reload nach Update
-      const { data: updated, error } = await supabase
-        .from("forum_threads")
-        .select(`
-          id, title, created_at, author_id, locked, is_pinned, done,
-          author:mitglieder!forum_threads_author_id_fkey ( username, role )
-        `)
-        .eq("category_id", cat.id);
-
-      if (error) throw error;
-      setThreads(updated || []);
-    } catch (e) {
-      alert(e.message);
-    }
+    router.push(`/forum/thread/${thread.id}`);
   };
 
   return (
-    <div style={{ padding: 20 }}>
+    <div style={{ padding: 20, maxWidth: "75%", margin: "0 auto" }}>
       <div className="forum-wrapper">
-        <h1>{cat ? cat.name : 'Lade Kategorie…'}</h1>
-        {cat?.description && <p className="forum-description">{cat.description}</p>}
+        {/* Zurück-Button zum Forum */}
+<div style={{ marginBottom: 16 }}>
+  <Link
+    href="/forum"
+    style={{
+      padding: "4px 8px",
+      background: "#34495e",
+      color: "white",
+      border: "none",
+      borderRadius: 4,
+      cursor: "pointer",
+      fontWeight: 500,
+      fontSize: "13px",
+      textDecoration: "none",
+      boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+      transition: "background 0.2s ease-in-out",
+      display: "inline-block",
+    }}
+    onMouseEnter={(e) => (e.target.style.background = "#3f5875")}
+    onMouseLeave={(e) => (e.target.style.background = "#34495e")}
+  >
+    ← Zurück zum Forum
+  </Link>
+</div>
+
+<h1>{cat ? cat.name : "Lade Kategorie…"}</h1>
+        {cat?.description && <p style={{ color: "#666" }}>{cat.description}</p>}
 
         {/* Dropdown für Mehrfachaktionen */}
-        {(
-          (isAdmin && cat?.slug === "ankuendigungen") ||
-          ((isAdmin || isMod) && cat?.slug !== "ankuendigungen")
-        ) && (
+        {(isAdmin || isMod) && (
           <div style={{ margin: "12px 0" }}>
             <select
               defaultValue=""
               onChange={(e) => {
                 const val = e.target.value;
                 if (!val) return;
+
                 if (val === "move") {
                   setMoveTargetThreads(selectedThreads);
-                  setShowMoveModal(true);   // ✅ Modal öffnen
+                  setShowMoveModal(true);
+                } else if (val === "delete") {
+                  setShowDeleteConfirm(true);
                 } else {
-                  selectedThreads.forEach(id => handleThreadAction(id, val));
+                  selectedThreads.forEach((id) => handleThreadAction(id, val));
                 }
+
                 setSelectedThreads([]);
                 e.target.value = "";
               }}
+
+              style={{
+                backgroundColor: "#34495e",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                padding: "6px 10px",
+                cursor: "pointer",
+                fontSize: "15px",
+                fontWeight: 500,
+                appearance: "none",
+                WebkitAppearance: "none",
+                MozAppearance: "none",
+                backgroundImage:
+                  "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='white' d='M1 1l5 5 5-5'/></svg>\")",
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "right 10px center",
+                backgroundSize: "12px",
+                paddingRight: "32px",
+                height: "30px",
+              }}
+              onMouseEnter={(e) => (e.target.style.backgroundColor = "#3f5875")}
+              onMouseLeave={(e) => (e.target.style.backgroundColor = "#34495e")}
             >
-              <option value="" disabled>Aktion für ausgewählte Threads wählen…</option>
+              <option value="" disabled>
+                Aktion wählen…
+              </option>
               <option value="pin">Pin</option>
               <option value="unpin">Unpin</option>
               <option value="lock">Lock</option>
@@ -337,120 +269,288 @@ export default function ForumCategory() {
           </div>
         )}
 
-        {/* Threads-Tabelle */}
-        <table className="forum-table">
-          <thead>
-            <tr>
-  {(isAdmin || isMod) && (
-    <th style={{ width: 40, textAlign: "center" }}>✔</th>
-  )}
-  <th style={{ width: "65%" }}>Thread</th>
-  <th style={{ width: 80, textAlign: "center" }}>Kommentare</th>
-  <th style={{ width: 160, textAlign: "center" }}>Letzter Beitrag</th>
-</tr>
-
-          </thead>
-          <tbody>
-            {threads.length === 0 && (
-              <tr>
-                <td colSpan={isAdmin || isMod ? 4 : 3} style={{ textAlign: "center", color: "#666" }}>
-  Noch keine Threads.
-</td>
-
+        {/* Threads Tabelle im neuen Stil */}
+        <div
+          style={{
+            border: "1px solid #e5e7eb",
+            borderRadius: "12px",
+            overflow: "hidden",
+            background: "white",
+            marginTop: 16,
+          }}
+        >
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              tableLayout: "fixed",
+            }}
+          >
+            <thead>
+              <tr style={{ background: "#34495e", color: "white" }}>
+                {(isAdmin || isMod) && (
+                  <th style={{ width: 40, textAlign: "center" }}>✔</th>
+                )}
+                <th
+                  style={{
+                    padding: "12px 16px",
+                    textAlign: "left",
+                    fontWeight: "600",
+                    borderRight: "2px solid #d1d5db",
+                  }}
+                >
+                  Thread
+                </th>
+                <th
+                  style={{
+                    width: 120,
+                    textAlign: "center",
+                    fontWeight: "600",
+                    borderRight: "2px solid #d1d5db",
+                  }}
+                >
+                  Kommentare
+                </th>
+                <th
+                  style={{
+                    width: 200,
+                    textAlign: "center",
+                    fontWeight: "600",
+                  }}
+                >
+                  Letzter Beitrag
+                </th>
               </tr>
-            )}
-            {threads.map(t => (
-              <tr key={t.id}>
-  {(isAdmin || isMod) && (
-    <td style={{ textAlign: "center" }}>
-      <input
-        type="checkbox"
-        checked={selectedThreads.includes(t.id)}
-        onChange={(e) => {
-          if (e.target.checked) {
-            setSelectedThreads([...selectedThreads, t.id]);
-          } else {
-            setSelectedThreads(selectedThreads.filter(id => id !== t.id));
-          }
+            </thead>
+            <tbody>
+              {threads.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={isAdmin || isMod ? 4 : 3}
+                    style={{ textAlign: "center", color: "#777", padding: 20 }}
+                  >
+                    Noch keine Threads.
+                  </td>
+                </tr>
+              ) : (
+                threads.map((t) => (
+                  <tr
+                    key={t.id}
+                    style={{
+                      borderTop: "1px solid #e5e7eb",
+                      background: "#fff",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = "#f9fafb")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "#fff")
+                    }
+                  >
+                    {(isAdmin || isMod) && (
+                      <td style={{ textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedThreads.includes(t.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedThreads([...selectedThreads, t.id]);
+                            } else {
+                              setSelectedThreads(
+                                selectedThreads.filter((id) => id !== t.id)
+                              );
+                            }
+                          }}
+                        />
+                      </td>
+                    )}
+                    <td
+                      style={{
+                        padding: "10px 16px",
+                        borderRight: "2px solid #e5e7eb",
+                      }}
+                    >
+                      <Link href={`/forum/thread/${t.id}`} className="threadLink">
+                          {t.isNew && (
+                            <span
+                              style={{
+                                color: "orange",
+                                fontWeight: "bold",
+                                marginRight: 6,
+                              }}
+                            >
+                              NEU
+                            </span>
+                          )}
+                          {t.is_pinned && "📌 "}
+                          {t.locked && "🔒 "}
+                          {t.done && <span style={{ color: "green" }}>✅ </span>}
+                          {t.title}
+                        </Link>
+                    </td>
+                    <td
+                      style={{
+                        textAlign: "center",
+                        borderRight: "2px solid #e5e7eb",
+                      }}
+                    >
+                      {t.stats?.comment_count || 0}
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      {t.stats?.last_post_at ? (
+                        <>
+                          {new Date(t.stats.last_post_at).toLocaleString()}{" "}
+                          · von{" "}
+                          {t.stats.last_post_role?.toLowerCase() === "admin" && (
+                            <span style={{ color: "red", fontWeight: "bold" }}>
+                              {t.stats.last_post_user} (Admin)
+                            </span>
+                          )}
+                          {t.stats.last_post_role?.toLowerCase() === "moderator" && (
+                            <span style={{ color: "green", fontWeight: "bold" }}>
+                              {t.stats.last_post_user} (Moderator)
+                            </span>
+                          )}
+                          {!["admin", "moderator"].includes(
+                            t.stats.last_post_role?.toLowerCase()
+                          ) && (
+                            <span style={{ color: "#1e2ba0", fontWeight: "bold" }}>
+                              {t.stats.last_post_user || "Unbekannt"}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Thread-Erstellen Formular */}
+{!(cat?.slug?.toLowerCase() === "ankuendigungen" && !isAdmin) && (
+  <>
+    <h2 style={{ marginTop: 32 }}>Neuen Thread erstellen</h2>
+    {session?.user && canCreateInThisCategory && (
+      <form
+        onSubmit={createThread}
+        style={{
+          display: "grid",
+          gap: 8,
+          background: "#f9fafb",
+          borderRadius: "12px",
+          padding: "18px 24px",
+          border: "1px solid #e5e7eb",
+          marginTop: "12px",
         }}
-      />
-    </td>
-  )}
+      >
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Titel"
+          required
+          style={{
+            padding: 10,
+            border: "1px solid #ccc",
+            borderRadius: 6,
+          }}
+        />
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="Inhalt"
+          rows={6}
+          required
+          style={{
+            padding: 10,
+            border: "1px solid #ccc",
+            borderRadius: 6,
+            resize: "vertical",
+          }}
+        />
+        <button
+          type="submit"
+          style={{
+            padding: "8px 14px",
+            background: "#34495e",
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+            fontWeight: 600,
+          }}
+        >
+          Thread erstellen
+        </button>
+        {errorMsg && <p style={{ color: "red" }}>{errorMsg}</p>}
+      </form>
+    )}
+  </>
+)}
 
-
-                {/* Thread-Titel */}
-                <td>
-                  <Link href={`/forum/thread/${t.id}`}>
-                    {t.isNew && <span style={{ color: 'orange', fontWeight: 'bold', marginRight: 6 }}>NEU</span>}
-                    {t.is_pinned && <span style={{ marginRight: 4 }}>📌</span>}
-                    {t.locked && <span style={{ marginRight: 4 }}>🔒</span>}
-                    {t.done && <span style={{ color: 'green', marginRight: 4 }}>✅</span>}
-                    {t.title}
-                  </Link>
-                </td>
-
-                {/* Kommentaranzahl */}
-                <td style={{ textAlign: "center" }}>
-                  {t.stats?.comment_count || 0}
-                </td>
-
-                {/* Letzter Beitrag */}
-                <td style={{ textAlign: "right" }}>
-                  {t.stats?.last_post_at ? (
-                    <>
-                      {new Date(t.stats.last_post_at).toLocaleString()}
-                      {" · von "}
-                      {t.stats.last_post_role?.toLowerCase() === "admin" && (
-                        <span style={{ color: "red", fontWeight: "bold" }}>
-                          {t.stats.last_post_user} (Admin)
-                        </span>
-                      )}
-                      {t.stats.last_post_role?.toLowerCase() === "moderator" && (
-                        <span style={{ color: "green", fontWeight: "bold" }}>
-                          {t.stats.last_post_user} (Moderator)
-                        </span>
-                      )}
-                      {!["admin","moderator"].includes(t.stats.last_post_role?.toLowerCase()) && (
-                        <span style={{ color: "#1e2ba0ff", fontWeight: "bold" }}>
-                          {t.stats.last_post_user || "Unbekannt"}
-                        </span>
-                      )}
-                    </>
-                  ) : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* Move Modal */}
+      </div>
+      {/* Move Modal */}
 {showMoveModal && (
-  <div style={{
-    position: "fixed",
-    top: 0, left: 0, right: 0, bottom: 0,
-    background: "rgba(0,0,0,0.5)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1000
-  }}>
-    <div style={{ background: "#fff", padding: 20, borderRadius: 8, minWidth: 300 }}>
-      <h3>Thread verschieben</h3>
+  <div
+    style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: "rgba(0,0,0,0.5)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 1000,
+    }}
+  >
+    <div
+      style={{
+        background: "#fff",
+        padding: 24,
+        borderRadius: 8,
+        minWidth: 320,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+      }}
+    >
+      <h3 style={{ marginBottom: 12, fontSize: "18px", fontWeight: "bold" }}>
+        Threads verschieben
+      </h3>
+
       <select
         value={selectedCatId}
         onChange={(e) => setSelectedCatId(e.target.value)}
-        style={{ width: "100%", padding: 8, marginTop: 12 }}
+        style={{
+          width: "100%",
+          padding: "10px",
+          borderRadius: 6,
+          border: "1px solid #ccc",
+          marginBottom: 16,
+          fontSize: "15px",
+        }}
       >
         <option value="">Kategorie wählen…</option>
-        {allCats.map(c => (
-          <option key={c.id} value={c.id}>{c.name}</option>
+        {allCats.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
         ))}
       </select>
 
-      <div style={{ marginTop: 16, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
         <button
           onClick={() => setShowMoveModal(false)}
-          style={{ padding: "6px 12px" }}
+          style={{
+            padding: "8px 14px",
+            background: "#e5e7eb",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+          }}
         >
           Abbrechen
         </button>
@@ -460,15 +560,26 @@ export default function ForumCategory() {
               alert("Bitte eine Kategorie auswählen.");
               return;
             }
-            // Verschiebe alle ausgewählten Threads
-            for (const tId of selectedThreads) {
-              await handleThreadAction(tId, "move", selectedCatId);
+
+            for (const threadId of moveTargetThreads) {
+              await handleThreadAction(threadId, "move", selectedCatId);
             }
-            setSelectedThreads([]);
+
             setSelectedCatId("");
+            setMoveTargetThreads([]);
             setShowMoveModal(false);
           }}
-          style={{ padding: "6px 12px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 4 }}
+          style={{
+            padding: "8px 14px",
+            background: "#2c3e50",
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+            fontWeight: 600,
+          }}
+          onMouseEnter={(e) => (e.target.style.background = "#1e40af")}
+          onMouseLeave={(e) => (e.target.style.background = "#2c3e50")}
         >
           Verschieben
         </button>
@@ -476,93 +587,94 @@ export default function ForumCategory() {
     </div>
   </div>
 )}
-
-        <h2>Neuen Thread erstellen</h2>
-        {session?.user && !canCreateInThisCategory && cat?.slug?.toLowerCase() === 'ankuendigungen' &&(
-          <p>Nur Admins dürfen hier neue Threads erstellen.</p>
-        )}
-        {session?.user && canCreateInThisCategory && (
-          <form onSubmit={createThread} style={{ display:'grid', gap: 8 }}>
-            <input
-              value={title}
-              onChange={(e)=>setTitle(e.target.value)}
-              placeholder="Titel"
-              required
-              style={{ padding: 8, border:'1px solid #ccc', borderRadius: 6 }}
-            />
-            <textarea
-              value={content}
-              onChange={(e)=>setContent(e.target.value)}
-              placeholder="Inhalt"
-              rows={6}
-              required
-              style={{ padding: 8, border:'1px solid #ccc', borderRadius: 6 }}
-            />
-            <button type="submit" style={{ padding:'8px 12px' }}>Thread erstellen</button>
-            {errorMsg && <p style={{ color:'red' }}>{errorMsg}</p>}
-          </form>
-        )}
+{/* Löschbestätigung Modal */}
+{showDeleteConfirm && (
+  <div
+    style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: "rgba(0,0,0,0.5)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 1000,
+    }}
+  >
+    <div
+      style={{
+        background: "#fff",
+        padding: 24,
+        borderRadius: 8,
+        minWidth: 320,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+      }}
+    >
+      <h3 style={{ marginBottom: 12, fontSize: "18px", fontWeight: "bold" }}>
+        Threads wirklich löschen?
+      </h3>
+      <p style={{ marginBottom: 20, color: "#555" }}>
+        Dieser Vorgang kann <strong>nicht rückgängig gemacht</strong> werden.
+      </p>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+        <button
+          onClick={() => setShowDeleteConfirm(false)}
+          style={{
+            padding: "8px 14px",
+            background: "#e5e7eb",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+          }}
+        >
+          Abbrechen
+        </button>
+        <button
+          onClick={async () => {
+            for (const threadId of selectedThreads) {
+              await handleThreadAction(threadId, "delete");
+            }
+            setSelectedThreads([]);
+            setShowDeleteConfirm(false);
+          }}
+          style={{
+            padding: "8px 14px",
+            background: "#b91c1c",
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+            fontWeight: 600,
+          }}
+          onMouseEnter={(e) => (e.target.style.background = "#dc2626")}
+          onMouseLeave={(e) => (e.target.style.background = "#b91c1c")}
+        >
+          Löschen
+        </button>
       </div>
-
-      <style jsx>{`
-        .forum-wrapper {
-          max-width:1000px;
-          margin: 0 auto;
-          padding: 0 16px;
-          }
-        
-        .forum-wrapper h1 {
-          margin-bottom: 8px;
-          font-size: 22px;
-          }
-
-          .modal-overlay {
-                position: fixed;
-                top: 0; left: 0; right: 0; bottom: 0;
-                background: rgba(0,0,0,0.5);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-              }
-              .modal {
-                background: white;
-                padding: 20px;
-                border-radius: 8px;
-                max-width: 400px;
-                width: 100%;
-              }
-
-        .forum-description {
-          color: #666;
-          margin-bottom: 16px;
-        }
-
-        .forum-table {
-          width: 100%;
-          margin: 0 auto;
-          border-collapse: collapse;
-          margin-top: 16px;
-          font-size: 14px;
-          background: #fff;
-        }
-        .forum-table th,
-        .forum-table td {
-          border: 1px solid #e5e7eb;
-          padding: 10px 12px;
-          text-align: left;
-          vertical-align: top.
-        }
-        .forum-table thead th {
-          background: #f4f6f9;
-          font-weight: 600;
-        }
-        .forum-table tbody tr:nth-child(even) {
-          background: #fafafa;
-        }
-        .forum-table tbody tr:hover {
-          background: #f1f5f9;
-        }
-      `}</style>
     </div>
-  )
+  </div>
+)}
+<style jsx>{`
+  :global(.threadLink) {
+    color: #2c3e50;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  :global(.threadLink:hover) {
+    text-decoration: underline !important;
+  }
+
+  :global(.threadLink:visited),
+  :global(.threadLink:active),
+  :global(.threadLink:focus) {
+    color: #2c3e50 !important;
+  }
+`}</style>
+
+    </div>
+  );
 }

@@ -3,6 +3,8 @@ import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../lib/supabaseClient'
 import Link from 'next/link'
+import { DataTable } from "@/components/ui/data-table"
+
 
 export default function ThreadPage() {
   const router = useRouter()
@@ -25,6 +27,9 @@ export default function ThreadPage() {
   const [showMoveModal, setShowMoveModal] = useState(false)
   const [allCats, setAllCats] = useState([])
   const [selectedCatId, setSelectedCatId] = useState("")
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showPostDeleteConfirm, setShowPostDeleteConfirm] = useState(false);
+  const [postToDelete, setPostToDelete] = useState(null);
 
   const role = (me?.role || '').toLowerCase()
   const isAdmin = role === 'admin'
@@ -234,20 +239,57 @@ export default function ThreadPage() {
   }
 
   return (
-    <div style={{ padding: 20 }}>
+   <div style={{ padding: 20, maxWidth: "75%", margin: "0 auto" }}>
       <div className="forum-wrapper">
         {/* Breadcrumbs */}
-        <div style={{ marginBottom: 12 }}>
-          <Link href="/forum" style={{ color: '#2563eb' }}>← Forum</Link>
-          {thread?.category && (
-            <>
-              {' · '}
-              <Link href={`/forum/${thread.category.slug}`} style={{ color: '#2563eb' }}>
-                {thread.category.name}
-              </Link>
-            </>
-          )}
-        </div>
+        <div style={{ marginBottom: 16, display: "flex", gap: "8px" }}>
+  <Link
+    href="/forum"
+    style={{
+      padding: "4px 8px",
+      background: "#34495e",
+      color: "white",
+      border: "none",
+      borderRadius: 4,
+      cursor: "pointer",
+      fontWeight: 500,
+      fontSize: "13px",
+      textDecoration: "none",
+      boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+      transition: "background 0.2s ease-in-out",
+      display: "inline-block",
+    }}
+    onMouseEnter={(e) => (e.target.style.background = "#3f5875")}
+    onMouseLeave={(e) => (e.target.style.background = "#34495e")}
+  >
+    ← Forum
+  </Link>
+
+  {thread?.category && (
+    <Link
+      href={`/forum/${thread.category.slug}`}
+      style={{
+        padding: "4px 8px",
+        background: "#34495e",
+        color: "white",
+        border: "none",
+        borderRadius: 4,
+        cursor: "pointer",
+        fontWeight: 500,
+        fontSize: "13px",
+        textDecoration: "none",
+        boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+        transition: "background 0.2s ease-in-out",
+        display: "inline-block",
+      }}
+      onMouseEnter={(e) => (e.target.style.background = "#3f5875")}
+      onMouseLeave={(e) => (e.target.style.background = "#34495e")}
+    >
+      {thread.category.name}
+    </Link>
+  )}
+</div>
+
 
         {/* Titel */}
         <h1>
@@ -266,13 +308,73 @@ export default function ThreadPage() {
     </p>
     {session?.user && (
       <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
-        <button onClick={() => handleVote("pro")}>👍 Dafür</button>
-        <button onClick={() => handleVote("neutral")}>😐 Egal</button>
-        <button onClick={() => handleVote("contra")}>👎 Dagegen</button>
+        {/* Dafür (grün) */}
+        <button
+          onClick={() => handleVote("pro")}
+          style={{
+            padding: "4px 8px",
+            background: "#16a34a", // grün
+            color: "white",
+            border: "none",
+            borderRadius: 4,
+            cursor: "pointer",
+            fontWeight: 500,
+            fontSize: "13px",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+            transition: "background 0.2s ease-in-out",
+          }}
+          onMouseEnter={(e) => (e.target.style.background = "#15803d")}
+          onMouseLeave={(e) => (e.target.style.background = "#16a34a")}
+        >
+          👍 Dafür
+        </button>
+
+        {/* Egal (gelb) */}
+        <button
+          onClick={() => handleVote("neutral")}
+          style={{
+            padding: "4px 8px",
+            background: "#eab308", // gelb
+            color: "white",
+            border: "none",
+            borderRadius: 4,
+            cursor: "pointer",
+            fontWeight: 500,
+            fontSize: "13px",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+            transition: "background 0.2s ease-in-out",
+          }}
+          onMouseEnter={(e) => (e.target.style.background = "#ca8a04")}
+          onMouseLeave={(e) => (e.target.style.background = "#eab308")}
+        >
+          😐 Egal
+        </button>
+
+        {/* Dagegen (rot) */}
+        <button
+          onClick={() => handleVote("contra")}
+          style={{
+            padding: "4px 8px",
+            background: "#b91c1c", // rot
+            color: "white",
+            border: "none",
+            borderRadius: 4,
+            cursor: "pointer",
+            fontWeight: 500,
+            fontSize: "13px",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+            transition: "background 0.2s ease-in-out",
+          }}
+          onMouseEnter={(e) => (e.target.style.background = "#991b1b")}
+          onMouseLeave={(e) => (e.target.style.background = "#b91c1c")}
+        >
+          👎 Dagegen
+        </button>
       </div>
     )}
   </div>
 )}
+
 
 
         {/* Thread-Aktionsmenü nach Rollen */}
@@ -281,27 +383,88 @@ export default function ThreadPage() {
             {(isAdmin || isMod) && (
               <div style={{ margin: '8px 0 12px' }}>
                 <select
-                  defaultValue=""
-                  onChange={(e) => {
-                    const val = e.target.value
-                    if (!val) return
-                    if (val === 'move') {
-                      setShowMoveModal(true)
-                    } else {
-                      handleThreadAction(thread.id, val)
-                    }
-                    e.target.value = ''
-                  }}
-                >
-                  <option value="" disabled>Aktion wählen…</option>
-                  {thread?.is_pinned ? <option value="unpin">Unpin</option> : <option value="pin">Pin</option>}
-                  {thread?.locked ? <option value="unlock">Unlock</option> : <option value="lock">Lock</option>}
-                  {thread?.done ? <option value="undone">Nicht erledigt</option> : <option value="done">Erledigt</option>}
-                  <option value="move">Verschieben</option>
-                  {canDeleteThread(thread?.author?.role) && (
-                    <option value="delete">Löschen</option>
-                  )}
-                </select>
+                    defaultValue=""
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (!val) return;
+                      if (val === "move") {
+                        setShowMoveModal(true);
+                      } else if (val === "delete") {
+                        setShowDeleteConfirm(true);
+                      } else {
+                        handleThreadAction(thread.id, val);
+                      }
+
+                      e.target.value = "";
+                    }}
+                    style={{
+                      backgroundColor: "#34495e",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "6px",
+                      padding: "6px 10px",
+                      cursor: "pointer",
+                      fontSize: "15px",
+                      fontWeight: 500,
+                      transition: "background-color 0.2s ease-in-out",
+                      appearance: "none",
+                      WebkitAppearance: "none",
+                      MozAppearance: "none",
+                      backgroundImage:
+                        "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='white' d='M1 1l5 5 5-5'/></svg>\")",
+                      backgroundRepeat: "no-repeat",
+                      backgroundPosition: "right 10px center",
+                      backgroundSize: "12px",
+                      paddingRight: "32px",
+                      height: "30px",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.backgroundColor = "#3f5875"; // nur Farbe ändern
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.backgroundColor = "#34495e"; // zurück zur Originalfarbe
+                    }}
+                  >
+                    <option value="" disabled style={{ background: "#34495e", color: "white" }}>
+                      Aktion wählen…
+                    </option>
+                    {thread?.is_pinned ? (
+                      <option value="unpin" style={{ background: "#34495e", color: "white" }}>
+                        Unpin
+                      </option>
+                    ) : (
+                      <option value="pin" style={{ background: "#34495e", color: "white" }}>
+                        Pin
+                      </option>
+                    )}
+                    {thread?.locked ? (
+                      <option value="unlock" style={{ background: "#34495e", color: "white" }}>
+                        Unlock
+                      </option>
+                    ) : (
+                      <option value="lock" style={{ background: "#34495e", color: "white" }}>
+                        Lock
+                      </option>
+                    )}
+                    {thread?.done ? (
+                      <option value="undone" style={{ background: "#34495e", color: "white" }}>
+                        Nicht erledigt
+                      </option>
+                    ) : (
+                      <option value="done" style={{ background: "#34495e", color: "white" }}>
+                        Erledigt
+                      </option>
+                    )}
+                    <option value="move" style={{ background: "#34495e", color: "white" }}>
+                      Verschieben
+                    </option>
+                    {canDeleteThread(thread?.author?.role) && (
+                      <option value="delete" style={{ background: "#34495e", color: "white" }}>
+                        Löschen
+                      </option>
+                    )}
+                  </select>
+
               </div>
             )}
 
@@ -323,248 +486,577 @@ export default function ThreadPage() {
                         setThread({ ...thread, done: true })
                       }
                     }}
-                    style={{ padding: '6px 10px', borderRadius: 4, border: '1px solid #ccc' }}
+                    style={{
+                      padding: "8px 14px",
+                      background: "#34495e",
+                      color: "white",
+                      border: "none",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      fontWeight: 600,
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                      transition: "background 0.2s ease-in-out",
+                    }}
+                    onMouseEnter={(e) => (e.target.style.background = "#3f5875")}
+                    onMouseLeave={(e) => (e.target.style.background = "#34495e")}
                   >
                     Als erledigt markieren
                   </button>
+
                 )}
               </div>
             )}
           </>
         )}
 
-        {/* Posts als Tabelle */}
-        <table className="forum-table">
-          <thead>
-            <tr>
-              <th style={{ width: 200 }}>Autor</th>
-              <th>Beitrag</th>
-            </tr>
-          </thead>
-          <tbody>
-            {posts.length === 0 && (
-              <tr>
-                <td colSpan={2} style={{ textAlign: 'center', color: '#666' }}>
-                  Noch keine Kommentare.
+       {/* Neue Forum-Tabelle im modernen Stil */}
+<div className="mt-8">
+  <div
+    style={{
+      border: "1px solid #e5e7eb",
+      borderRadius: "12px",
+      overflow: "hidden",
+      background: "white",
+    }}
+  >
+    <table
+      style={{
+        width: "100%",
+        borderCollapse: "collapse",
+        tableLayout: "fixed",
+      }}
+    >
+      <thead>
+        <tr style={{ background: "#34495e", color: "white" }}>
+          <th
+            style={{
+              padding: "12px 16px",
+              textAlign: "center",
+              fontWeight: "600",
+              borderRight: "2px solid #d1d5db", // ← Linie im Header
+              width: "200px",
+            }}
+          >
+            Autor
+          </th>
+          <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "600" }}>
+            Beitrag
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        {posts.length > 0 ? (
+          posts.map((p) => {
+            const role = (p.author?.role || "").toLowerCase();
+
+            let autorStyled;
+            if (role === "admin") {
+              autorStyled = (
+                <span style={{ color: "red", fontWeight: "700" }}>
+                  {p.author?.username} (Admin)
+                </span>
+              );
+            } else if (role === "moderator") {
+              autorStyled = (
+                <span style={{ color: "green", fontWeight: "700" }}>
+                  {p.author?.username} (Moderator)
+                </span>
+              );
+            } else {
+              autorStyled = (
+                <span style={{ color: "#1e2ba0", fontWeight: "700" }}>
+                  {p.author?.username || "Unbekannt"}
+                </span>
+              );
+            }
+
+            return (
+              <tr key={p.id} style={{ borderTop: "1px solid #e5e7eb" }}>
+                <td
+                  style={{
+                    padding: "10px 16px",
+                    verticalAlign: "top",
+                    borderRight: "2px solid #e5e7eb", // ← klare Trennung sichtbar
+                    width: "200px",
+                  }}
+                >
+                  {autorStyled}
+                  <div
+                    className="text-xs text-gray-500 mt-1"
+                    style={{ color: "#6b7280", fontSize: "13px", marginTop: "4px" }}
+                  >
+                    {new Date(p.created_at).toLocaleString()}
+                  </div>
                 </td>
+                <td style={{ padding: "10px 16px", verticalAlign: "top", position: "relative" }}>
+  {/* Wenn der aktuelle Post bearbeitet wird → Eingabefeld anzeigen */}
+  {editingId === p.id ? (
+    <div>
+      <textarea
+        value={editText}
+        onChange={(e) => setEditText(e.target.value)}
+        rows={4}
+        style={{
+          width: "100%",
+          border: "1px solid #ccc",
+          borderRadius: 6,
+          padding: "8px",
+          resize: "vertical",
+          fontSize: "15px",
+        }}
+      />
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: "6px", marginTop: "6px" }}>
+        <button
+          onClick={async () => {
+            if (!editText.trim()) return alert("Inhalt darf nicht leer sein");
+            const { error } = await supabase
+              .from("forum_posts")
+              .update({ content: editText.trim() })
+              .eq("id", p.id);
+            if (error) return alert("Fehler beim Speichern: " + error.message);
+            setPosts(posts.map(post => post.id === p.id ? { ...post, content: editText } : post));
+            setEditingId(null);
+            setEditText("");
+          }}
+          style={{
+            padding: "6px 10px",
+            background: "#34495e",
+            color: "white",
+            border: "none",
+            borderRadius: 4,
+            cursor: "pointer",
+            fontWeight: 600,
+            fontSize: "13px",
+          }}
+          onMouseEnter={(e) => (e.target.style.background = "#3f5875")}
+          onMouseLeave={(e) => (e.target.style.background = "#34495e")}
+        >
+          Speichern
+        </button>
+        <button
+          onClick={() => {
+            setEditingId(null);
+            setEditText("");
+          }}
+          style={{
+            padding: "6px 10px",
+            background: "#aaa",
+            color: "white",
+            border: "none",
+            borderRadius: 4,
+            cursor: "pointer",
+            fontWeight: 600,
+            fontSize: "13px",
+          }}
+        >
+          Abbrechen
+        </button>
+      </div>
+    </div>
+  ) : (
+    <>
+      <div className="whitespace-pre-wrap">{p.content}</div>
+
+      {/* Aktionen unter jedem Kommentar */}
+<div style={{ display: "flex", justifyContent: "flex-end", gap: "6px", marginTop: "6px" }}>
+  {/* Bearbeiten-Button: nur für eigenen Kommentar */}
+  {session?.user?.id === p.author_id && (
+    <button
+      onClick={() => {
+        setEditingId(p.id);
+        setEditText(p.content);
+      }}
+      style={{
+        padding: "4px 8px",
+        background: "#34495e",
+        color: "white",
+        border: "none",
+        borderRadius: 4,
+        cursor: "pointer",
+        fontWeight: 500,
+        fontSize: "13px",
+        boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+        transition: "background 0.2s ease-in-out",
+      }}
+      onMouseEnter={(e) => (e.target.style.background = "#3f5875")}
+      onMouseLeave={(e) => (e.target.style.background = "#34495e")}
+    >
+      Bearbeiten
+    </button>
+  )}
+
+        {/* Löschen-Button: nur für Admins & Moderatoren */}
+      {(isAdmin || isMod) && (
+        <button
+          onClick={() => {
+            setPostToDelete(p.id);
+            setShowPostDeleteConfirm(true);
+          }}
+          style={{
+            padding: "4px 8px",
+            background: "#b91c1c",
+            color: "white",
+            border: "none",
+            borderRadius: 4,
+            cursor: "pointer",
+            fontWeight: 500,
+            fontSize: "13px",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+            transition: "background 0.2s ease-in-out",
+          }}
+          onMouseEnter={(e) => (e.target.style.background = "#dc2626")}
+          onMouseLeave={(e) => (e.target.style.background = "#b91c1c")}
+        >
+          Löschen
+        </button>
+      )}
+      </div>
+          </>
+        )}
+      </td>
+
               </tr>
-            )}
-            {posts.map((p) => {
-              const canEditOwn = session?.user?.id === p.author_id
-              const authorRole = (p.author?.role || '').toLowerCase()
+            );
+          })
+        ) : (
+          <tr>
+            <td colSpan="2" style={{ padding: "20px", textAlign: "center", color: "#777" }}>
+              Keine Kommentare vorhanden.
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+  </div>
+</div>
 
-              return (
-                <tr key={p.id}>
-                  <td style={{ verticalAlign: 'top' }}>
-                    {authorRole === 'admin' && (
-                      <span style={{ color: 'red', fontWeight: 'bold' }}>
-                        {p.author?.username} (Admin)
-                      </span>
-                    )}
-                    {authorRole === 'moderator' && (
-                      <span style={{ color: 'green', fontWeight: 'bold' }}>
-                        {p.author?.username} (Moderator)
-                      </span>
-                    )}
-                    {!['admin', 'moderator'].includes(authorRole) && (
-                      <span style={{ color: '#1e2ba0ff', fontWeight: 'bold' }}>
-                        {p.author?.username || 'Unbekannt'}
-                      </span>
-                    )}
-                    <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
-                      {new Date(p.created_at).toLocaleString()}
-                    </div>
-                  </td>
 
-                  <td>
-                    {editingId === p.id ? (
-                      <>
-                        <textarea
-                          value={editText}
-                          onChange={(e) => setEditText(e.target.value)}
-                          rows={5}
-                          style={{ width: '100%', padding: 8, border: '1px solid #ccc', borderRadius: 6 }}
-                        />
-                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              const newText = editText.trim()
-                              if (!newText) return alert('Text darf nicht leer sein.')
-                              const { error } = await supabase
-                                .from('forum_posts')
-                                .update({ content: newText })
-                                .eq('id', p.id)
-                              if (error) return alert(error.message)
-
-                              const { data: reload } = await supabase
-                                .from('forum_posts')
-                                .select(`
-                                  id, content, created_at, author_id,
-                                  author:mitglieder!forum_posts_author_id_fkey ( username, role )
-                                `)
-                                .eq('thread_id', id)
-                                .order('created_at', { ascending: true })
-
-                              setPosts(reload || [])
-                              setEditingId(null)
-                              setEditText('')
-                            }}
-                          >
-                            Speichern
-                          </button>
-                          <button type="button" onClick={() => { setEditingId(null); setEditText('') }}>
-                            Abbrechen
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div style={{ whiteSpace: 'pre-wrap' }}>{p.content}</div>
-                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                          {/* Bearbeiten: nur eigener Kommentar */}
-                          {canEditOwn && editingId !== p.id && (
-                            <button
-                              type="button"
-                              onClick={() => { setEditingId(p.id); setEditText(p.content) }}
-                            >
-                              Bearbeiten
-                            </button>
-                          )}
-                          {/* Löschen: nur Admin/Mod */}
-                          {canDeletePost(authorRole) && (
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                if (!confirm('Kommentar löschen?')) return
-                                const { error } = await supabase
-                                  .from('forum_posts')
-                                  .delete()
-                                  .eq('id', p.id)
-                                if (error) return alert(error.message)
-                                setPosts(prev => prev.filter(x => x.id !== p.id))
-                              }}
-                            >
-                              Löschen
-                            </button>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+  {/* Kommentarformular direkt darunter, gleiche Breite + gleichmäßiger Rand */}
+{thread && !thread.locked && (
+  <form
+    onSubmit={addComment}
+    style={{
+      display: "grid",
+      gap: 8,
+      borderTop: "1px solid #e5e7eb",
+      background: "#f9fafb",
+      padding: "18px 24px 20px 24px", // mehr Innenabstand rechts + links
+      boxShadow: "inset 0 2px 4px rgba(0,0,0,0.03)",
+      borderBottomLeftRadius: "12px",
+      borderBottomRightRadius: "12px",
+    }}
+  >
+    {!session?.user && <p>Bitte einloggen, um zu kommentieren.</p>}
+    <textarea
+      value={content}
+      onChange={(e) => setContent(e.target.value)}
+      placeholder="Kommentar…"
+      rows={4}
+      disabled={!session?.user}
+      style={{
+        padding: 10,
+        border: "1px solid #ccc",
+        borderRadius: 6,
+        resize: "vertical",
+        width: "100%",
+        fontSize: "15px",
+        lineHeight: "1.5",
+        background: "white",
+        boxSizing: "border-box", // verhindert Überlauf
+      }}
+    />
+    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+      <button
+        type="submit"
+        disabled={!session?.user}
+        style={{
+          padding: "8px 14px",
+          background: "#34495e",
+          color: "white",
+          border: "none",
+          borderRadius: 6,
+          cursor: "pointer",
+          fontWeight: 600,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+          transition: "background 0.2s ease-in-out",
+        }}
+        onMouseEnter={(e) => (e.target.style.background = "#3f5875")}
+        onMouseLeave={(e) => (e.target.style.background = "#34495e")}
+      >
+        Kommentar senden
+      </button>
+    </div>
+    {errorMsg && <p style={{ color: "red" }}>{errorMsg}</p>}
+  </form>
+)}
+</div>
 
         {/* Move Modal */}
         {showMoveModal && (
-          <div style={{
-            position: "fixed",
-            top: 0, left: 0, right: 0, bottom: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000
-          }}>
-            <div style={{ background: "#fff", padding: 20, borderRadius: 8, minWidth: 300 }}>
-              <h3>Thread verschieben</h3>
-              <select
-                value={selectedCatId}
-                onChange={(e) => setSelectedCatId(e.target.value)}
-                style={{ width: "100%", padding: 8, marginTop: 12 }}
-              >
-                <option value="">Kategorie wählen…</option>
-                {allCats.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+  <div
+    style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: "rgba(0,0,0,0.5)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 1000,
+    }}
+  >
+    <div
+      style={{
+        background: "#fff",
+        padding: 24,
+        borderRadius: 8,
+        minWidth: 320,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+      }}
+    >
+      <h3 style={{ marginBottom: 12, fontSize: "18px", fontWeight: "bold" }}>
+        Thread verschieben
+      </h3>
 
-              <div style={{ marginTop: 16, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+      <select
+        value={selectedCatId}
+        onChange={(e) => setSelectedCatId(e.target.value)}
+        style={{
+          width: "100%",
+          padding: "10px",
+          borderRadius: 6,
+          border: "1px solid #ccc",
+          marginBottom: 16,
+          fontSize: "15px",
+        }}
+      >
+        <option value="">Kategorie wählen…</option>
+        {allCats.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.name}
+          </option>
+        ))}
+      </select>
+
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          justifyContent: "flex-end",
+        }}
+      >
+        <button
+          onClick={() => setShowMoveModal(false)}
+          style={{
+            padding: "8px 14px",
+            background: "#e5e7eb",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+          }}
+        >
+          Abbrechen
+        </button>
+        <button
+          onClick={async () => {
+            if (!selectedCatId) {
+              alert("Bitte eine Kategorie auswählen.");
+              return;
+            }
+            await handleThreadAction(thread.id, "move", selectedCatId);
+            setSelectedCatId("");
+            setShowMoveModal(false);
+          }}
+          style={{
+            padding: "8px 14px",
+            background: "#2c3e50",
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+            fontWeight: 600,
+          }}
+          onMouseEnter={(e) => (e.target.style.background = "#1e40af")}
+          onMouseLeave={(e) => (e.target.style.background = "#2563eb")}
+        >
+          Verschieben
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+        {/* Falls Thread gesperrt */}
+        {thread?.locked && <p>Dieser Thread ist geschlossen.</p>}
+
+        {/* Kommentar-Löschbestätigung Modal */}
+{showPostDeleteConfirm && (
+  <div
+    style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: "rgba(0,0,0,0.5)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 1000,
+    }}
+  >
+    <div
+      style={{
+        background: "#fff",
+        padding: 24,
+        borderRadius: 8,
+        minWidth: 320,
+        boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+      }}
+    >
+      <h3 style={{ marginBottom: 12, fontSize: "18px", fontWeight: "bold" }}>
+        Kommentar wirklich löschen?
+      </h3>
+      <p style={{ marginBottom: 20, color: "#555" }}>
+        Dieser Vorgang kann <strong>nicht rückgängig gemacht</strong> werden.
+      </p>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+        <button
+          onClick={() => {
+            setShowPostDeleteConfirm(false);
+            setPostToDelete(null);
+          }}
+          style={{
+            padding: "8px 14px",
+            background: "#e5e7eb",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+          }}
+        >
+          Abbrechen
+        </button>
+        <button
+          onClick={async () => {
+            if (!postToDelete) return;
+            const { error } = await supabase
+              .from("forum_posts")
+              .delete()
+              .eq("id", postToDelete);
+            if (error) {
+              alert("Fehler beim Löschen: " + error.message);
+            } else {
+              setPosts(posts.filter((p) => p.id !== postToDelete));
+            }
+            setShowPostDeleteConfirm(false);
+            setPostToDelete(null);
+          }}
+          style={{
+            padding: "8px 14px",
+            background: "#b91c1c",
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+            cursor: "pointer",
+            fontWeight: 600,
+          }}
+          onMouseEnter={(e) => (e.target.style.background = "#dc2626")}
+          onMouseLeave={(e) => (e.target.style.background = "#b91c1c")}
+        >
+          Löschen
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+        {/* Löschbestätigung Modal */}
+        {showDeleteConfirm && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: "rgba(0,0,0,0.5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1000,
+            }}
+          >
+            <div
+              style={{
+                background: "#fff",
+                padding: 24,
+                borderRadius: 8,
+                minWidth: 320,
+                boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+              }}
+            >
+              <h3
+                style={{
+                  marginBottom: 12,
+                  fontSize: "18px",
+                  fontWeight: "bold",
+                }}
+              >
+                Thread wirklich löschen?
+              </h3>
+              <p style={{ marginBottom: 20, color: "#555" }}>
+                Dieser Vorgang kann <strong>nicht rückgängig gemacht</strong> werden.
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  justifyContent: "flex-end",
+                }}
+              >
                 <button
-                  onClick={() => setShowMoveModal(false)}
-                  style={{ padding: "6px 12px" }}
+                  onClick={() => setShowDeleteConfirm(false)}
+                  style={{
+                    padding: "8px 14px",
+                    background: "#e5e7eb",
+                    border: "none",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                  }}
                 >
                   Abbrechen
                 </button>
                 <button
                   onClick={async () => {
-                    if (!selectedCatId) {
-                      alert("Bitte eine Kategorie auswählen.")
-                      return
-                    }
-                    await handleThreadAction(thread.id, "move", selectedCatId)
-                    setSelectedCatId("")
-                    setShowMoveModal(false)
+                    await handleThreadAction(thread.id, "delete");
+                    setShowDeleteConfirm(false);
                   }}
-                  style={{ padding: "6px 12px", background: "#2563eb", color: "#fff", border: "none", borderRadius: 4 }}
+                  style={{
+                    padding: "8px 14px",
+                    background: "#b91c1c",
+                    color: "white",
+                    border: "none",
+                    borderRadius: 6,
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.target.style.background = "#dc2626")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.target.style.background = "#b91c1c")
+                  }
                 >
-                  Verschieben
+                  Löschen
                 </button>
               </div>
             </div>
           </div>
         )}
-
-        {/* Kommentarformular */}
-        {thread && !thread.locked && (
-          <form onSubmit={addComment} style={{ display: 'grid', gap: 8, maxWidth: 800, marginTop: 16 }}>
-            {!session?.user && <p>Bitte einloggen um zu kommentieren.</p>}
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Kommentar…"
-              rows={4}
-              disabled={!session?.user}
-              style={{ padding: 8, border: '1px solid #ccc', borderRadius: 6 }}
-            />
-            <button type="submit" disabled={!session?.user} style={{ padding: '8px 12px' }}>
-              Kommentar senden
-            </button>
-            {errorMsg && <p style={{ color: 'red' }}>{errorMsg}</p>}
-          </form>
-        )}
-        {thread?.locked && <p>Dieser Thread ist geschlossen.</p>}
-      </div>
-
-      <style jsx>{`
-        .forum-wrapper {
-          max-width: 1000px;
-          margin: 0 auto;
-          padding: 0 16px;
-        }
-        .forum-wrapper h1 {
-          margin-bottom: 8px;
-          font-size: 22px;
-        }
-        .forum-table {
-          width: 100%;
-          margin: 0 auto;
-          border-collapse: collapse;
-          margin-top: 8px;
-          font-size: 14px;
-          background: #fff;
-        }
-        .forum-table th,
-        .forum-table td {
-          border: 1px solid #e5e7eb;
-          padding: 10px 12px;
-          text-align: left;
-          vertical-align: top;
-        }
-        .forum-table thead th {
-          background: #f4f6f9;
-          font-weight: 600;
-        }
-        .forum-table tbody tr:nth-child(even) {
-          background: #fafafa;
-        }
-        .forum-table tbody tr:hover {
-          background: #f1f5f9;
-        }
-      `}</style>
-    </div>
+      </div> 
   )
 }

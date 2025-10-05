@@ -32,88 +32,43 @@ export default function ForumIndex() {
   // Kategorien + Stats laden
   useEffect(() => {
     const load = async () => {
-      // Kategorien
-      const { data: categories, error: catErr } = await supabase
+      const { data: categories } = await supabase
         .from('forum_categories')
         .select('id, name, slug, description')
         .order('position', { ascending: true });
 
-      if (catErr) {
-        console.error(catErr);
-        setCats([]);
-        return;
-      }
+      const { data: stats } = await supabase.from('forum_thread_stats').select('*');
+      const { data: threads } = await supabase.from('forum_threads').select('id, category_id, created_at');
 
-      // Stats pro Thread
-      const { data: stats, error: statErr } = await supabase
-        .from('forum_thread_stats')
-        .select('*');
-
-      if (statErr) {
-        console.error(statErr);
-      }
-
-      // Threads laden (für Zuordnung zu Kategorien + created_at)
-      const { data: threads, error: thrErr } = await supabase
-        .from('forum_threads')
-        .select('id, category_id, created_at');
-      if (thrErr) console.error(thrErr);
-
-      // Reads des mitglieder (für NEU)
       let readMap = new Map();
       if (session?.user) {
-        const { data: reads, error: readErr } = await supabase
+        const { data: reads } = await supabase
           .from('forum_thread_reads')
           .select('thread_id, last_read_at')
           .eq('user_id', session.user.id);
-
-        if (!readErr) {
-          readMap = new Map((reads || []).map(r => [r.thread_id, r.last_read_at]));
-        } else {
-          console.error(readErr);
-        }
+        readMap = new Map((reads || []).map(r => [r.thread_id, r.last_read_at]));
       }
 
-      // Threads -> letzte Aktivität + "NEU"-Check
       const statsMap = new Map((stats || []).map(s => [s.thread_id, s]));
       const categoryInfo = {};
 
       for (const t of threads || []) {
         const s = statsMap.get(t.id);
         const lastActivity = new Date(s?.last_post_at || t.created_at);
-
-        // Kategorie initialisieren
         if (!categoryInfo[t.category_id]) {
-          categoryInfo[t.category_id] = {
-            count: 0,
-            lastActivity: null,
-            lastUser: null,
-            lastRole: null,
-          };
+          categoryInfo[t.category_id] = { count: 0, lastActivity: null, lastUser: null, lastRole: null };
         }
-
-        // Anzahl erhöhen
         categoryInfo[t.category_id].count++;
-
-        // Letzter Beitrag
-        if (
-          !categoryInfo[t.category_id].lastActivity ||
-          lastActivity > categoryInfo[t.category_id].lastActivity
-        ) {
+        if (!categoryInfo[t.category_id].lastActivity || lastActivity > categoryInfo[t.category_id].lastActivity) {
           categoryInfo[t.category_id].lastActivity = lastActivity;
           categoryInfo[t.category_id].lastUser = s?.last_post_user || null;
           categoryInfo[t.category_id].lastRole = s?.last_post_role || null;
         }
-
-        // NEU prüfen
         const lastRead = readMap.get(t.id);
         const isNew = !lastRead || new Date(lastRead) < lastActivity;
-        if (isNew) {
-          categoryInfo[t.category_id].isNew = true;
-        }
+        if (isNew) categoryInfo[t.category_id].isNew = true;
       }
 
-      // Kategorien zusammenbauen
       const merged = (categories || []).map(c => ({
         ...c,
         threadCount: categoryInfo[c.id]?.count || 0,
@@ -130,114 +85,137 @@ export default function ForumIndex() {
   }, [session?.user]);
 
   return (
-    <div style={{ padding: 20 }}>
+    <div style={{ padding: 20, maxWidth: "75%", margin: "0 auto" }}>
       <div className="forum-wrapper">
-        <h1>Forum</h1>
+        <h1 style={{ marginBottom: 16, fontSize: 22, fontWeight: 600 }}>Forum</h1>
 
-        <table className="forum-table">
-          <thead>
-            <tr>
-              <th style={{ width: '35%' }}>Kategorie</th>
-              <th style={{ width: '35%' }}>Beschreibung</th>
-              <th style={{ width: 80, textAlign: "center" }}>Threads</th>
-              <th style={{ width: 200, textAlign: "center" }}>Letzter Beitrag</th>
-            </tr>
-          </thead>
-          <tbody>
-            {cats.length === 0 && (
-              <tr>
-                <td colSpan={4} style={{ textAlign: 'center', color: '#666' }}>
-                  Keine Kategorien vorhanden.
-                </td>
+        {/* Neue Tabelle im Stil der Threads-Seite */}
+        <div
+          style={{
+            border: "1px solid #e5e7eb",
+            borderRadius: "12px",
+            overflow: "hidden",
+            background: "white",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+          }}
+        >
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              tableLayout: "fixed",
+            }}
+          >
+            <thead>
+              <tr style={{ background: "#34495e", color: "white" }}>
+                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "600", width: "35%", borderRight: "2px solid #d1d5db" }}>
+                  Kategorie
+                </th>
+                <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: "600", width: "35%", borderRight: "2px solid #d1d5db" }}>
+                  Beschreibung
+                </th>
+                <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "600", width: "80px", borderRight: "2px solid #d1d5db" }}>
+                  Threads
+                </th>
+                <th style={{ padding: "12px 16px", textAlign: "center", fontWeight: "600", width: "200px" }}>
+                  Letzter Beitrag
+                </th>
               </tr>
-            )}
-            {cats.map(c => (
-              <tr key={c.id}>
-                {/* Kategorie */}
-                <td>
-                  <Link href={`/forum/${c.slug}`}>
-                    {c.isNewCategory && session?.user && (
-                      <span style={{ color: 'orange', fontWeight: 'bold', marginRight: 6 }}>NEU</span>
-                    )}
-                    {c.name}
-                  </Link>
-                </td>
+            </thead>
 
-                {/* Beschreibung */}
-                <td style={{ color: '#555' }}>
-                  {c.description || '—'}
-                </td>
+            <tbody>
+              {cats.length === 0 ? (
+                <tr>
+                  <td colSpan={4} style={{ padding: "20px", textAlign: "center", color: "#777" }}>
+                    Keine Kategorien vorhanden.
+                  </td>
+                </tr>
+              ) : (
+                cats.map((c) => (
+                  <tr
+                    key={c.id}
+                    style={{
+                      borderTop: "1px solid #e5e7eb",
+                      background: "#fff",
+                      transition: "background 0.2s ease-in-out",
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#f9fafb")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
+                  >
+                    {/* Kategorie */}
+                    <td style={{ padding: "10px 16px", borderRight: "2px solid #e5e7eb" }}>
+                        <Link href={`/forum/${c.slug}`} className="catLink">
+                          {c.isNewCategory && session?.user && (
+                            <span style={{ color: "orange", fontWeight: "bold", marginRight: 6 }}>NEU</span>
+                          )}
+                          {c.name}
+                        </Link>
+                      </td>
 
-                {/* Anzahl Threads */}
-                <td style={{ textAlign: "center" }}>
-                  {c.threadCount}
-                </td>
 
-                {/* Letzter Beitrag */}
-                <td style={{ textAlign: "right" }}>
-                  {c.lastActivity ? (
-                    <>
-                      {c.lastActivity.toLocaleString()} {" · von "}
-                      {c.lastRole?.toLowerCase() === "admin" && (
-                        <span style={{ color: "red", fontWeight: "bold" }}>
-                          {c.lastUser} (Admin)
-                        </span>
+                    {/* Beschreibung */}
+                    <td style={{ color: "#000000ff", padding: "10px 16px", borderRight: "2px solid #e5e7eb" }}>
+                      {c.description || "—"}
+                    </td>
+
+                    {/* Anzahl Threads */}
+                    <td style={{ textAlign: "center", borderRight: "2px solid #e5e7eb" }}>
+                      {c.threadCount}
+                    </td>
+
+                    {/* Letzter Beitrag */}
+                    <td style={{ textAlign: "center", padding: "10px 16px" }}>
+                      {c.lastActivity ? (
+                        <>
+                          {c.lastActivity.toLocaleString()} {" · von "}
+                          {c.lastRole?.toLowerCase() === "admin" && (
+                            <span style={{ color: "red", fontWeight: "bold" }}>
+                              {c.lastUser} (Admin)
+                            </span>
+                          )}
+                          {c.lastRole?.toLowerCase() === "moderator" && (
+                            <span style={{ color: "green", fontWeight: "bold" }}>
+                              {c.lastUser} (Moderator)
+                            </span>
+                          )}
+                          {!["admin", "moderator"].includes(c.lastRole?.toLowerCase()) && (
+                            <span style={{ color: "#1e2ba0", fontWeight: "bold" }}>
+                              {c.lastUser || "Unbekannt"}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        "—"
                       )}
-                      {c.lastRole?.toLowerCase() === "moderator" && (
-                        <span style={{ color: "green", fontWeight: "bold" }}>
-                          {c.lastUser} (Moderator)
-                        </span>
-                      )}
-                      {!["admin","moderator"].includes(c.lastRole?.toLowerCase()) && (
-                        <span style={{ color: "#1e2ba0ff", fontWeight: "bold" }}>
-                          {c.lastUser || "Unbekannt"}
-                        </span>
-                      )}
-                    </>
-                  ) : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
-
       <style jsx>{`
-        .forum-wrapper {
-          max-width: 1000px;
-          margin: 0 auto;
-          padding: 0 16px;
-        }
-        .forum-wrapper h1 {
-          margin-bottom: 8px;
-          font-size: 22px;
-        }
-        .forum-table {
-          width: 100%;
-          margin: 0 auto;
-          border-collapse: collapse;
-          margin-top: 16px;
-          font-size: 14px;
-          background: #fff;
-        }
-        .forum-table th,
-        .forum-table td {
-          border: 1px solid #e5e7eb;
-          padding: 10px 12px;
-          text-align: left;
-          vertical-align: top;
-        }
-        .forum-table thead th {
-          background: #f4f6f9;
-          font-weight: 600;
-        }
-        .forum-table tbody tr:nth-child(even) {
-          background: #fafafa;
-        }
-        .forum-table tbody tr:hover {
-          background: #f1f5f9;
-        }
-      `}</style>
+  /* Stile für den Kategorie-Link */
+  :global(.catLink) {
+    color: #2c3e50;
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  /* Beim Darüberfahren */
+  :global(.catLink:hover) {
+    text-decoration: underline !important;
+  }
+
+  /* Gleiche Farbe behalten, auch nach Klick */
+  :global(.catLink:visited),
+  :global(.catLink:active),
+  :global(.catLink:focus) {
+    color: #2c3e50 !important;
+  }
+`}</style>
+
     </div>
   );
 }
