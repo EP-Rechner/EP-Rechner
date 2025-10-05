@@ -170,15 +170,18 @@ useEffect(() => {
         {latestThreads.map((t) => (
           <tr key={t.id}>
             <td>
-              <Link href={`/forum/thread/${t.id}`}>
-                {unreadIds.has(t.id) && (
-                  <span style={{ color: "orange", fontWeight: "bold", marginRight: 6 }}>NEU</span>
-                )}
-                {t.is_pinned && <span style={{ marginRight: 4 }}>📌</span>}
-                {t.locked && <span style={{ marginRight: 4 }}>🔒</span>}
-                {t.done && <span style={{ color: "green", marginRight: 4 }}>✅</span>}
-                {t.title}
+              <Link href={`/forum/thread/${t.id}`} legacyBehavior>
+                <a className="threadLink">
+                  {unreadIds.has(t.id) && (
+                    <span style={{ color: "orange", fontWeight: "bold", marginRight: 6 }}>NEU</span>
+                  )}
+                  {t.is_pinned && <span style={{ marginRight: 4 }}>📌</span>}
+                  {t.locked && <span style={{ marginRight: 4 }}>🔒</span>}
+                  {t.done && <span style={{ color: "green", marginRight: 4 }}>✅</span>}
+                  {t.title}
+                </a>
               </Link>
+
             </td>
             <td>{t.category?.name}</td>
             <td>{new Date(t.created_at).toLocaleString()}</td>
@@ -222,13 +225,18 @@ useEffect(() => {
         {unreadThreads.map((t) => (
           <tr key={t.id}>
             <td>
-              <Link href={`/forum/thread/${t.id}`}>
-                <span style={{ color: "orange", fontWeight: "bold", marginRight: 6 }}>NEU</span>
-                {t.is_pinned && <span style={{ marginRight: 4 }}>📌</span>}
-                {t.locked && <span style={{ marginRight: 4 }}>🔒</span>}
-                {t.done && <span style={{ color: "green", marginRight: 4 }}>✅</span>}
-                {t.title}
+              <Link href={`/forum/thread/${t.id}`} legacyBehavior>
+                <a className="threadLink">
+                  {unreadIds.has(t.id) && (
+                    <span style={{ color: "orange", fontWeight: "bold", marginRight: 6 }}>NEU</span>
+                  )}
+                  {t.is_pinned && <span style={{ marginRight: 4 }}>📌</span>}
+                  {t.locked && <span style={{ marginRight: 4 }}>🔒</span>}
+                  {t.done && <span style={{ color: "green", marginRight: 4 }}>✅</span>}
+                  {t.title}
+                </a>
               </Link>
+
             </td>
             <td>{t.category?.name}</td>
             <td>{new Date(t.last_activity).toLocaleString()}</td>
@@ -271,12 +279,18 @@ useEffect(() => {
         {topVoted.map((t) => (
           <tr key={t.id}>
             <td>
-              <Link href={`/forum/thread/${t.id}`}>
-                {t.is_pinned && <span style={{ marginRight: 4 }}>📌</span>}
-                {t.locked && <span style={{ marginRight: 4 }}>🔒</span>}
-                {t.done && <span style={{ color: "green", marginRight: 4 }}>✅</span>}
-                {t.title}
+              <Link href={`/forum/thread/${t.id}`} legacyBehavior>
+                <a className="threadLink">
+                  {unreadIds.has(t.id) && (
+                    <span style={{ color: "orange", fontWeight: "bold", marginRight: 6 }}>NEU</span>
+                  )}
+                  {t.is_pinned && <span style={{ marginRight: 4 }}>📌</span>}
+                  {t.locked && <span style={{ marginRight: 4 }}>🔒</span>}
+                  {t.done && <span style={{ color: "green", marginRight: 4 }}>✅</span>}
+                  {t.title}
+                </a>
               </Link>
+
             </td>
             <td>{t.score}</td>
           </tr>
@@ -335,21 +349,23 @@ useEffect(() => {
     text-align: center;
   }
 
-  .forum-table a {
-    color: #2c3e50;
-    font-weight: 600;
-    text-decoration: none;
-  }
+  /* Einheitlicher Thread-Link-Stil wie auf den anderen Forum-Seiten */
+.threadLink {
+  color: #2c3e50;
+  font-weight: 600;
+  text-decoration: none;
+}
 
-  .forum-table a:hover {
-    text-decoration: underline !important;
-  }
+.threadLink:hover {
+  text-decoration: underline !important;
+}
 
-  .forum-table a:visited,
-  .forum-table a:active,
-  .forum-table a:focus {
-    color: #2c3e50 !important;
-  }
+.threadLink:visited,
+.threadLink:active,
+.threadLink:focus {
+  color: #2c3e50 !important;
+}
+
     .forum-table-title {
   margin-top: 24px;
   margin-bottom: 8px;
