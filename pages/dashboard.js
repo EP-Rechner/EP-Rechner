@@ -64,44 +64,59 @@ useEffect(() => {
       setUsername(meRow?.username || null);
 
       // 📌 Neueste Threads
-      const { data: latest } = await supabase
-        .from("forum_threads")
-        .select(`
-          id, title, created_at, locked, done, is_pinned,
-          category:forum_categories ( id, name )
-        `)
-        .order("created_at", { ascending: false })
-        .limit(10);
-      setLatestThreads(latest || []);
+        const { data: threads } = await supabase
+          .from("forum_threads")
+          .select(`
+            id, title, created_at, author_id, locked, is_pinned, done,
+            category:forum_categories ( id, name ),
+            author:mitglieder!forum_threads_author_id_fkey ( username, role )
+          `)
+          .order("created_at", { ascending: false })
+          .limit(10);
+
+        const { data: statsAll } = await supabase.from("forum_thread_stats").select("*");
+        const statMapAll = new Map(statsAll?.map((s) => [s.thread_id, s]));
+
+
+        // 🔄 Zusammenführen
+        const merged = (threads || []).map((t) => ({
+          ...t,
+          stats: statMapAll.get(t.id) || {},
+        }));
+
+        setLatestThreads(merged);
+
 
       // 📌 Ungelesene Threads
       const { data: allThreads } = await supabase
         .from("forum_threads")
         .select(`
-          id, title, created_at, locked, done, is_pinned,
+          id, title, created_at, author_id, locked, is_pinned, done,
           category:forum_categories ( id, name ),
-          posts:forum_posts ( created_at )
+          author:mitglieder!forum_threads_author_id_fkey ( username, role )
         `);
+
+      const { data: statsUnread } = await supabase.from("forum_thread_stats").select("*");
+      const statMapUnread = new Map(statsUnread?.map((s) => [s.thread_id, s]));
+
+
       const { data: reads } = await supabase
         .from("forum_thread_reads")
         .select("thread_id, last_read_at")
         .eq("user_id", session.user.id);
-      const readMap = new Map((reads || []).map(r => [r.thread_id, r.last_read_at]));
 
-      const unread = (allThreads || []).map(t => {
-        const lastPostDate = t.posts?.length
-          ? new Date(Math.max(...t.posts.map(p => new Date(p.created_at).getTime())))
-          : null;
-        const lastActivity = lastPostDate
-          ? new Date(Math.max(new Date(t.created_at).getTime(), lastPostDate.getTime()))
-          : new Date(t.created_at);
+      const readMap = new Map(reads?.map((r) => [r.thread_id, r.last_read_at]));
+
+      const mergedUnread = (allThreads || []).map((t) => {
+  const s = statMapUnread.get(t.id) || {};
         const lastRead = readMap.get(t.id);
+        const lastActivity = new Date(s.last_post_at || t.created_at);
         const isUnread = !lastRead || new Date(lastRead) < lastActivity;
-        return { ...t, last_activity: lastActivity, isUnread };
-      }).filter(t => t.isUnread);
+        return { ...t, stats: s, isUnread };
+      });
 
-      unread.sort((a, b) => b.last_activity - a.last_activity);
-      setUnreadThreads(unread);
+      setUnreadThreads(merged.filter((t) => t.isUnread));
+
 
       // 📌 Wünsche & Anregungen nach Votes
       const { data: votedThreads } = await supabase
@@ -184,7 +199,32 @@ useEffect(() => {
 
             </td>
             <td>{t.category?.name}</td>
-            <td>{new Date(t.created_at).toLocaleString()}</td>
+            <td>
+              {t.stats?.last_post_at ? (
+                <>
+                  {new Date(t.stats.last_post_at).toLocaleString()} {" · von "}
+                  {t.stats.last_post_role?.toLowerCase() === "admin" && (
+                    <span style={{ color: "red", fontWeight: "bold" }}>
+                      {t.stats.last_post_user} (Admin)
+                    </span>
+                  )}
+                  {t.stats.last_post_role?.toLowerCase() === "moderator" && (
+                    <span style={{ color: "green", fontWeight: "bold" }}>
+                      {t.stats.last_post_user} (Moderator)
+                    </span>
+                  )}
+                  {!["admin", "moderator"].includes(
+                    t.stats.last_post_role?.toLowerCase()
+                  ) && (
+                    <span style={{ color: "#1e2ba0", fontWeight: "bold" }}>
+                      {t.stats.last_post_user || "Unbekannt"}
+                    </span>
+                  )}
+                </>
+              ) : (
+                "—"
+              )}
+            </td>
           </tr>
         ))}
       </tbody>
@@ -239,7 +279,29 @@ useEffect(() => {
 
             </td>
             <td>{t.category?.name}</td>
-            <td>{new Date(t.last_activity).toLocaleString()}</td>
+            <td>
+                {t.stats?.last_post_at
+                  ? <>
+                      {new Date(t.stats.last_post_at).toLocaleString()} {" · von "}
+                      {t.stats.last_post_role?.toLowerCase() === "admin" && (
+                        <span style={{ color: "red", fontWeight: "bold" }}>
+                          {t.stats.last_post_user} (Admin)
+                        </span>
+                      )}
+                      {t.stats.last_post_role?.toLowerCase() === "moderator" && (
+                        <span style={{ color: "green", fontWeight: "bold" }}>
+                          {t.stats.last_post_user} (Moderator)
+                        </span>
+                      )}
+                      {!["admin", "moderator"].includes(t.stats.last_post_role?.toLowerCase()) && (
+                        <span style={{ color: "#1e2ba0", fontWeight: "bold" }}>
+                          {t.stats.last_post_user || "Unbekannt"}
+                        </span>
+                      )}
+                    </>
+                  : "—"}
+              </td>
+
           </tr>
         ))}
       </tbody>
