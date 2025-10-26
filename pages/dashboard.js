@@ -1,3 +1,4 @@
+// pages/dashboard.js
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
@@ -17,34 +18,35 @@ export default function Dashboard() {
   const [showUnread, setShowUnread] = useState(true);
   const [showTopVoted, setShowTopVoted] = useState(true);
 
+  // Preferences in Supabase laden
+  const loadPrefs = async (uid) => {
+    const { data, error } = await supabase
+      .from("user_dashboard_prefs")
+      .select("show_latest, show_unread, show_top_voted")
+      .eq("user_id", uid)
+      .maybeSingle();
+
+    if (!error && data) {
+      setShowLatest(Boolean(data.show_latest));
+      setShowUnread(Boolean(data.show_unread));
+      setShowTopVoted(Boolean(data.show_top_voted));
+    } else {
+      // Keine Zeile vorhanden -> Defaults (true/true/true) bleiben bestehen
+    }
+  };
+
+  // Einzelne Preference speichern (optimistisch + upsert)
+  const savePrefsPatch = async (patch) => {
+    if (!user) return;
+    await supabase
+      .from("user_dashboard_prefs")
+      .upsert(
+        { user_id: user.id, ...patch },
+        { onConflict: "user_id" } // wichtig: damit pro User genau 1 Zeile genutzt wird
+      );
+  };
+
   const router = useRouter();
-
-// Einstellungen pro User speichern/lesen
-useEffect(() => {
-  if (!user) return;
-
-  const uid = user.id;
-  const latest = localStorage.getItem(`showLatest_${uid}`);
-  const unread = localStorage.getItem(`showUnread_${uid}`);
-  const top = localStorage.getItem(`showTopVoted_${uid}`);
-
-  if (latest !== null) setShowLatest(latest === "true");
-  if (unread !== null) setShowUnread(unread === "true");
-  if (top !== null) setShowTopVoted(top === "true");
-}, [user]);
-
-useEffect(() => {
-  if (user) localStorage.setItem(`showLatest_${user.id}`, showLatest);
-}, [showLatest, user]);
-
-useEffect(() => {
-  if (user) localStorage.setItem(`showUnread_${user.id}`, showUnread);
-}, [showUnread, user]);
-
-useEffect(() => {
-  if (user) localStorage.setItem(`showTopVoted_${user.id}`, showTopVoted);
-}, [showTopVoted, user]);
-
 
   useEffect(() => {
     const init = async () => {
@@ -54,6 +56,9 @@ useEffect(() => {
         return;
       }
       setUser(session.user);
+
+    // ⬇️ NEU: Dashboard-Preferences laden
+    await loadPrefs(session.user.id);
 
       // Username laden
       const { data: meRow } = await supabase
@@ -162,8 +167,15 @@ useEffect(() => {
     <h2 className="forum-table-title">Neueste Threads</h2>
     <button
       className="toggle-btn"
-      onClick={() => setShowLatest((s) => !s)}
-    >
+      onClick={() => {
+    setShowLatest((prev) => {
+      const next = !prev;
+      // optimistisch UI updaten, dann speichern
+      savePrefsPatch({ show_latest: next });
+      return next;
+    });
+  }}
+  > 
       {showLatest ? "Ausblenden" : "Einblenden"}
     </button>
   </div>
@@ -243,8 +255,14 @@ useEffect(() => {
     <h2 className="forum-table-title">Ungelesene Threads</h2>
     <button
       className="toggle-btn"
-      onClick={() => setShowUnread((s) => !s)}
-    >
+      onClick={() => {
+    setShowUnread((prev) => {
+      const next = !prev;
+      savePrefsPatch({ show_unread: next });
+      return next;
+    });
+  }}
+  >
       {showUnread ? "Ausblenden" : "Einblenden"}
     </button>
   </div>
@@ -320,8 +338,14 @@ useEffect(() => {
     <h2 className="forum-table-title">Top 10 Wünsche & Anregungen</h2>
     <button
       className="toggle-btn"
-      onClick={() => setShowTopVoted((s) => !s)}
-    >
+      onClick={() => {
+    setShowTopVoted((prev) => {
+      const next = !prev;
+      savePrefsPatch({ show_top_voted: next });
+      return next;
+    });
+  }}
+  >
       {showTopVoted ? "Ausblenden" : "Einblenden"}
     </button>
   </div>

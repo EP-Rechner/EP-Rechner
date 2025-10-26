@@ -123,11 +123,12 @@ export default function PferdDetail() {
                 user_id: user.id,
               },
             ],
-            { onConflict: "gruppe_id,pferd_id,pferd_table" }
+            { onConflict: "user_id,gruppe_id,pferd_id,pferd_table" }
           );
         if (insErr) throw insErr;
         setGruppenDesPferds((prev) => new Set([...prev, gruppeId]));
       } else {
+
         // entfernen
         const { error: delErr } = await supabase
           .from("pferde_gruppen")

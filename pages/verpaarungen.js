@@ -32,14 +32,16 @@ export default function Verpaarungen() {
         .from("Verpaarungen")
         .select(
           `
-          id, created_at,
+          id, created_at, user_id,
           hengst_id, stute_id,
           Hengste (id, Name),
           Stuten (id, Name)
         `
         )
         .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false, nullsLast: true })
+        .order("id", { ascending: false })                   // stabile Zweitsortierung
+        .range(0, 9999);                                     // falls ihr >1000 Zeilen habt
 
       if (error) throw error;
 

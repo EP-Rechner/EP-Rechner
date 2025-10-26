@@ -1,6 +1,6 @@
 // pages/forum/[slug].js
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react"; // 👈 useCallback hinzu
 import Link from "next/link";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -27,6 +27,53 @@ export default function ForumCategory() {
   const role = (me?.role || "").toLowerCase();
   const isAdmin = role === "admin";
   const isMod = isAdmin || role === "moderator";
+
+  // Einheitliches Laden + Mergen + Sortieren
+const buildAndSetThreads = useCallback(async (categoryId, userId) => {
+  // Threads laden
+  const { data: rows } = await supabase
+    .from("forum_threads")
+    .select(`
+      id, title, created_at, author_id, locked, is_pinned, done,
+      author:mitglieder!forum_threads_author_id_fkey ( username, role )
+    `)
+    .eq("category_id", categoryId);
+
+  // Stats laden
+  const { data: stats } = await supabase.from("forum_thread_stats").select("*");
+  const statMap = new Map(stats?.map((s) => [s.thread_id, s]));
+
+  // Reads (nur wenn eingeloggt)
+  let readMap = new Map();
+  if (userId) {
+    const { data: reads } = await supabase
+      .from("forum_thread_reads")
+      .select("thread_id, last_read_at")
+      .eq("user_id", userId);
+    readMap = new Map(reads?.map((r) => [r.thread_id, r.last_read_at]));
+  }
+
+  // Mergen + isNew
+  const merged = (rows || []).map((r) => {
+    const s = statMap.get(r.id) || {};
+    const lastRead = readMap.get(r.id);
+    const lastActivity = new Date(s.last_post_at || r.created_at);
+    const isNew = !lastRead || new Date(lastRead) < lastActivity;
+    return { ...r, stats: s, isNew };
+  });
+
+  // Sortierung: 📌 zuerst, dann letztes Activity-Datum (neu → alt)
+  merged.sort((a, b) => {
+    if (a.is_pinned && !b.is_pinned) return -1;
+    if (!a.is_pinned && b.is_pinned) return 1;
+    const dateA = new Date(a.stats.last_post_at || a.created_at);
+    const dateB = new Date(b.stats.last_post_at || b.created_at);
+    return dateB - dateA;
+  });
+
+  setThreads(merged);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
 
   // Session laden
   useEffect(() => {
@@ -59,56 +106,23 @@ export default function ForumCategory() {
   }, []);
 
   // Kategorie + Threads laden
-  useEffect(() => {
-    if (!slug) return;
-    const load = async () => {
-      const { data: category } = await supabase
-        .from("forum_categories")
-        .select("*")
-        .eq("slug", slug)
-        .single();
-      setCat(category || null);
+      useEffect(() => {
+        if (!slug) return;
+        const load = async () => {
+          const { data: category } = await supabase
+            .from("forum_categories")
+            .select("*")
+            .eq("slug", slug)
+            .single();
 
-      const { data: rows } = await supabase
-        .from("forum_threads")
-        .select(`
-          id, title, created_at, author_id, locked, is_pinned, done,
-          author:mitglieder!forum_threads_author_id_fkey ( username, role )
-        `)
-        .eq("category_id", category.id);
+          setCat(category || null);
 
-      const { data: stats } = await supabase.from("forum_thread_stats").select("*");
-      const statMap = new Map(stats?.map((s) => [s.thread_id, s]));
-
-      let readMap = new Map();
-      if (session?.user) {
-        const { data: reads } = await supabase
-          .from("forum_thread_reads")
-          .select("thread_id, last_read_at")
-          .eq("user_id", session.user.id);
-        readMap = new Map(reads?.map((r) => [r.thread_id, r.last_read_at]));
-      }
-
-      const merged = (rows || []).map((r) => {
-        const s = statMap.get(r.id) || {};
-        const lastRead = readMap.get(r.id);
-        const lastActivity = new Date(s.last_post_at || r.created_at);
-        const isNew = !lastRead || new Date(lastRead) < lastActivity;
-        return { ...r, stats: s, isNew };
-      });
-
-      merged.sort((a, b) => {
-        if (a.is_pinned && !b.is_pinned) return -1;
-        if (!a.is_pinned && b.is_pinned) return 1;
-        const dateA = new Date(a.stats.last_post_at || a.created_at);
-        const dateB = new Date(b.stats.last_post_at || b.created_at);
-        return dateB - dateA;
-      });
-
-      setThreads(merged);
-    };
-    load();
-  }, [slug, session]);
+          if (category?.id) {
+            await buildAndSetThreads(category.id, session?.user?.id);
+          }
+        };
+        load();
+      }, [slug, session?.user?.id, buildAndSetThreads]);
 
   // Thread-Aktion (Admin/Mod)
 const handleThreadAction = async (threadId, action, extra) => {
@@ -122,23 +136,13 @@ const handleThreadAction = async (threadId, action, extra) => {
     if (action === "move")   await supabase.from("forum_threads").update({ category_id: extra }).eq("id", threadId);
     if (action === "delete") await supabase.from("forum_threads").delete().eq("id", threadId);
 
-    // Threads nach Aktion neu laden
-    const { data: rows } = await supabase
-      .from("forum_threads")
-      .select(`
-        id, title, created_at, author_id, locked, is_pinned, done,
-        author:mitglieder!forum_threads_author_id_fkey ( username, role )
-      `)
-      .eq("category_id", cat.id);
+   // Threads nach Aktion neu laden – konsistent sortiert
+    await buildAndSetThreads(cat.id, session?.user?.id);
 
-    const { data: stats } = await supabase.from("forum_thread_stats").select("*");
-    const statMap = new Map(stats?.map((s) => [s.thread_id, s]));
-    const merged = (rows || []).map((r) => ({ ...r, stats: statMap.get(r.id) || {} }));
-    setThreads(merged);
-  } catch (err) {
-    alert("Fehler: " + err.message);
-  }
-};
+      } catch (err) {
+        alert("Fehler: " + err.message);
+      }
+    };
 
   const canCreateInThisCategory =
     !!session?.user &&
@@ -209,23 +213,26 @@ const handleThreadAction = async (threadId, action, extra) => {
         {/* Dropdown für Mehrfachaktionen */}
         {(isAdmin || isMod) && (
           <div style={{ margin: "12px 0" }}>
-            <select
+                        <select
               defaultValue=""
               onChange={(e) => {
                 const val = e.target.value;
                 if (!val) return;
 
                 if (val === "move") {
-                  setMoveTargetThreads(selectedThreads);
-                  setShowMoveModal(true);
+                  setMoveTargetThreads(selectedThreads); // Auswahl merken
+                  setShowMoveModal(true);                // Modal öffnen
+                  // WICHTIG: hier NICHT selectedThreads leeren!
                 } else if (val === "delete") {
-                  setShowDeleteConfirm(true);
+                  setShowDeleteConfirm(true);            // Modal öffnen
+                  // WICHTIG: hier NICHT selectedThreads leeren!
                 } else {
+                  // Sofort-Aktionen (pin/unpin/lock/unlock/done/undone) direkt ausführen
                   selectedThreads.forEach((id) => handleThreadAction(id, val));
+                  setSelectedThreads([]);                // erst hier leeren
                 }
 
-                setSelectedThreads([]);
-                e.target.value = "";
+                e.target.value = "";                     // Dropdown zurücksetzen
               }}
 
               style={{
@@ -567,6 +574,7 @@ const handleThreadAction = async (threadId, action, extra) => {
 
             setSelectedCatId("");
             setMoveTargetThreads([]);
+            setSelectedThreads([]); // <— Häkchen jetzt leeren
             setShowMoveModal(false);
           }}
           style={{

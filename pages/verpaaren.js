@@ -90,6 +90,21 @@ export default function Verpaaren() {
     [hengste, hengsteGroupFilter, groupMap]
   );
 
+    useEffect(() => {
+    // nur noch Hengste selektiert lassen, die im aktuellen Filter sichtbar sind
+    const allowed = new Set(visibleHengste.map(h => h.id));
+    setSelectedHengstIds(prev => {
+      const next = new Set([...prev].filter(id => allowed.has(id)));
+      return next;
+    });
+
+    // Ergebnisse zurücksetzen, weil sich die Basis geändert hat
+    setRows([]);
+    setHiddenRowKeys(new Set());
+    setCheckedRowKeys(new Set());
+  }, [hengsteGroupFilter, visibleHengste]);
+
+
   // Auswahl
   const toggleHengst = (id) => {
     setSelectedHengstIds((prev) => {
@@ -130,7 +145,10 @@ export default function Verpaaren() {
     }
     const stute = (stuten || []).find((s) => s.id === selectedStuteId);
     if (!stute) return setRows([]);
-    const selectedH = (hengste || []).filter((h) => selectedHengstIds.has(h.id));
+      const selectedH = (hengste || []).filter(
+    (h) => selectedHengstIds.has(h.id) && isInGroup("Hengste", h.id, hengsteGroupFilter)
+  );
+
     const newRows = selectedH.map((h) => computeFoalRow(stute, h));
     setRows(newRows);
     setHiddenRowKeys(new Set());
