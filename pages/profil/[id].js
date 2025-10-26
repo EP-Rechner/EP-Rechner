@@ -26,36 +26,43 @@ export default function Profil() {
   if (!router.isReady) return;
 
   const loadProfile = async () => {
-    const currentId = router.query.id?.toString() || null;
-    console.log("Profil-ID aus URL:", currentId);
+    const currentId = router.query.id?.toString() || "";
+    console.log("[Profil] router.isReady:", router.isReady);
+    console.log("[Profil] Router-ID:", currentId, "typeof:", typeof currentId);
 
-    const { data: profiles, error: userErr } = await supabase
+    // --- DEBUG: Alle Zeilen aus der View holen und anzeigen
+    const { data: allProfiles, error: allErr } = await supabase
       .from("user_profile_info")
-      .select("id, username, last_sign_in_at");
+      .select("*");
 
-    if (userErr) {
-      console.error("Fehler beim Laden:", userErr);
-      return;
+    if (allErr) {
+      console.error("[Profil] Fehler beim Laden ALLER Profile:", allErr);
+    } else {
+      console.log("[Profil] Anzahl Profile in View:", allProfiles?.length);
+      console.table(allProfiles?.slice(0, 5)); // zeigt die ersten 5 Zeilen als Tabelle
     }
 
-    // Manuelles Filtern, um Typprobleme zu vermeiden
-    const foundProfile = profiles.find((p) => p.id === currentId);
-    console.log("Gefundenes Profil:", foundProfile);
+    // --- DEBUG: Versuche, die Zeile mit der Router-ID zu finden
+    const found = allProfiles?.find((p) => p.id === currentId);
+    console.log("[Profil] Gefundenes Profil für ID:", currentId, "=>", found);
 
-    setProfileUser(foundProfile || null);
+    // Wenn gefunden, ins State übernehmen
+    setProfileUser(found || null);
 
+    // Zuchten für diese ID laden
     const { data: zuchtData, error: zuchtErr } = await supabase
       .from("zuchten")
       .select("*")
       .eq("user_id", currentId)
       .order("created_at", { ascending: false });
 
-    if (zuchtErr) console.error("Fehler beim Laden der Zuchten:", zuchtErr);
+    if (zuchtErr) console.error("[Profil] Fehler Zuchten:", zuchtErr);
     setZuchten(zuchtData || []);
   };
 
   loadProfile();
 }, [router.isReady, router.query.id]);
+
 
 
 

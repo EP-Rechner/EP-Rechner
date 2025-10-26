@@ -120,7 +120,7 @@ export default function Dashboard() {
         return { ...t, stats: s, isUnread };
       });
 
-      setUnreadThreads(merged.filter((t) => t.isUnread));
+      setUnreadThreads(mergedUnread.filter((t) => t.isUnread)); // ✅ RICHTIG
 
 
       // 📌 Wünsche & Anregungen nach Votes

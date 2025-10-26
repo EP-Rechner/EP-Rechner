@@ -29,15 +29,16 @@ export default function Verpaarungen() {
       if (!user) throw new Error("Nicht eingeloggt");
 
       const { data, error } = await supabase
+        // beim Laden:
         .from("Verpaarungen")
-        .select(
-          `
+        .select(`
           id, created_at, user_id,
           hengst_id, stute_id,
-          Hengste (id, Name),
-          Stuten (id, Name)
-        `
-        )
+          stute_name, hengst_name,
+          Stute:Stuten!fk_verpaarung_stute!left ( id, Name ),
+          Hengst:Hengste!fk_verpaarung_hengst!left ( id, Name )
+        `)
+
         .eq("user_id", user.id)
         .order("created_at", { ascending: false, nullsLast: true })
         .order("id", { ascending: false })                   // stabile Zweitsortierung
@@ -167,31 +168,31 @@ export default function Verpaarungen() {
                         </Link>
                       </td>
                       <td>
-                        {v.Stuten ? (
+                        {v.Stute?.id ? (
                           <Link
                             href={{
-                              pathname: `/pferd/${v.Stuten.id}`,
+                              pathname: `/pferd/${v.Stute.id}`,
                               query: { table: "Stuten" },
                             }}
                           >
-                            {v.Stuten.Name || "(ohne Name)"}
+                            {v.Stute?.Name ?? v.stute_name ?? "(ohne Name)"}
                           </Link>
                         ) : (
-                          "—"
+                          v.stute_name ?? "—"
                         )}
                       </td>
                       <td>
-                        {v.Hengste ? (
+                        {v.Hengst?.id ? (
                           <Link
                             href={{
-                              pathname: `/pferd/${v.Hengste.id}`,
+                              pathname: `/pferd/${v.Hengst.id}`,
                               query: { table: "Hengste" },
                             }}
                           >
-                            {v.Hengste.Name || "(ohne Name)"}
+                            {v.Hengst?.Name ?? v.hengst_name ?? "(ohne Name)"}
                           </Link>
                         ) : (
-                          "—"
+                          v.hengst_name ?? "—"
                         )}
                       </td>
                       <td>

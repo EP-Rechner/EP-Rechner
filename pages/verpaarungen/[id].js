@@ -37,8 +37,8 @@ export default function VerpaarungDetail() {
     "Papiere","Zuchtschau","Papiere & Zuchtschau",
   ], []);
 
-  // Laden
-  useEffect(() => {
+    // Laden
+    useEffect(() => {
     if (!id) return;
     const load = async () => {
       try {
@@ -46,23 +46,124 @@ export default function VerpaarungDetail() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Nicht eingeloggt");
 
-        const [{ data: vp, error: vpErr }, { data: stutenData, error: sErr }, { data: hengsteData, error: hErr }] =
-          await Promise.all([
-            supabase.from("Verpaarungen")
-              .select(`id, stute_id, hengst_id, Hengste (id, Name), Stuten (id, Name)`)
-              .eq("id", id).single(),
-            supabase.from("Stuten").select("*").eq("user_id", user.id),
-            supabase.from("Hengste").select("*").eq("user_id", user.id),
-          ]);
-        if (vpErr) throw vpErr; if (sErr) throw sErr; if (hErr) throw hErr;
+        // 1) Direkt aus Verpaarungen lesen (alle gespeicherten Felder)
+        const { data: vp, error: vpErr } = await supabase
+          .from("Verpaarungen")
+          .select(`
+            id, stute_id, hengst_id,
+            stute_name, hengst_name,
+            groesse, hauptdisziplin, fk_gesamt,
+            disziplin_1, fk_1, fk_1_1, fk_1_2, fk_1_3, fk_1_4, fk_1_5,
+            disziplin_2, fk_2, fk_2_1, fk_2_2, fk_2_3, fk_2_4, fk_2_5,
+            disziplin_3, fk_3, fk_3_1, fk_3_2, fk_3_3, fk_3_4, fk_3_5,
+            temperament, ausstrahlung, aufmerksamkeit, ausgeglichenheit,
+            haendelbarkeit, nervenstaerke, intelligenz,
+            kopf, halsansatz, hals, ruecken,
+            vorderbeine_stand, vorderbeine_boden, vorderbeine_zehen,
+            hinterbeine_stand, hinterbeine_boden, hinterbeine_zehen,
+            interieur, exterieur,
+            inzuchtpruefung, groessencheck,
+            extension, agouti, cream_pearl, dun, champagne, mushroom,
+            silver, graying, kit, overo, leopard, patn1, patn2,
+            splashed_white, flaxen, sooty, rabicano, pangare, dapples, rotfaktor,
+            papiere, zuchtschau, papiere_und_zuchtschau
+          `)
+          .eq("id", id)
+          .single();
 
-        const mare = (stutenData || []).find((s)=> s.id === vp.stute_id);
-        const stallion = (hengsteData || []).find((h)=> h.id === vp.hengst_id);
-        if (!mare || !stallion) throw new Error("Stute oder Hengst nicht gefunden.");
+        if (vpErr) throw vpErr;
 
-        const foal = computeFoalRow(mare, stallion);
-        foal["Stutenname"] = vp?.Stuten?.Name ?? foal["stute_name"] ?? "—";
-        foal["Hengstname"] = vp?.Hengste?.Name ?? foal["hengst_name"] ?? "—";
+        // 2) DB -> UI-Row mappen (deutsche Spaltenüberschriften)
+        const foal = {
+          key: `vp_${vp.id}`,
+          stute_id: vp.stute_id,
+          hengst_id: vp.hengst_id,
+          stute_name: vp.stute_name ?? "—",
+          hengst_name: vp.hengst_name ?? "—",
+
+          "Stutenname": vp.stute_name ?? "—",
+          "Hengstname": vp.hengst_name ?? "—",
+          "Größe": vp.groesse ?? "—",
+          "Hauptdisziplin": vp.hauptdisziplin ?? "—",
+          "FK Gesamt": vp.fk_gesamt ?? "—",
+
+          "Disziplin 1": vp.disziplin_1 ?? "—",
+          "FK 1": vp.fk_1 ?? "—",
+          "FK 1.1": vp.fk_1_1 ?? "—",
+          "FK 1.2": vp.fk_1_2 ?? "—",
+          "FK 1.3": vp.fk_1_3 ?? "—",
+          "FK 1.4": vp.fk_1_4 ?? "—",
+          "FK 1.5": vp.fk_1_5 ?? "—",
+
+          "Disziplin 2": vp.disziplin_2 ?? "—",
+          "FK 2": vp.fk_2 ?? "—",
+          "FK 2.1": vp.fk_2_1 ?? "—",
+          "FK 2.2": vp.fk_2_2 ?? "—",
+          "FK 2.3": vp.fk_2_3 ?? "—",
+          "FK 2.4": vp.fk_2_4 ?? "—",
+          "FK 2.5": vp.fk_2_5 ?? "—",
+
+          "Disziplin 3": vp.disziplin_3 ?? "—",
+          "FK 3": vp.fk_3 ?? "—",
+          "FK 3.1": vp.fk_3_1 ?? "—",
+          "FK 3.2": vp.fk_3_2 ?? "—",
+          "FK 3.3": vp.fk_3_3 ?? "—",
+          "FK 3.4": vp.fk_3_4 ?? "—",
+          "FK 3.5": vp.fk_3_5 ?? "—",
+
+          "Temperament": vp.temperament ?? "—",
+          "Ausstrahlung": vp.ausstrahlung ?? "—",
+          "Aufmerksamkeit": vp.aufmerksamkeit ?? "—",
+          "Ausgeglichenheit": vp.ausgeglichenheit ?? "—",
+          "Händelbarkeit": vp.haendelbarkeit ?? "—",
+          "Nervenstärke": vp.nervenstaerke ?? "—",
+          "Intelligenz": vp.intelligenz ?? "—",
+
+          "Kopf": vp.kopf ?? "—",
+          "Halsansatz": vp.halsansatz ?? "—",
+          "Hals": vp.hals ?? "—",
+          "Rücken": vp.ruecken ?? "—",
+
+          "Vorderbeine Stand": vp.vorderbeine_stand ?? "—",
+          "Vorderbeine Boden": vp.vorderbeine_boden ?? "—",
+          "Vorderbeine Zehen": vp.vorderbeine_zehen ?? "—",
+
+          "Hinterbeine Stand": vp.hinterbeine_stand ?? "—",
+          "Hinterbeine Boden": vp.hinterbeine_boden ?? "—",
+          "Hinterbeine Zehen": vp.hinterbeine_zehen ?? "—",
+
+          "Interieur": vp.interieur ?? "—",
+          "Exterieur": vp.exterieur ?? "—",
+
+          // JSONB-Felder (bereits als {text, style} gespeichert): direkt durchreichen
+          "Inzuchtprüfung": vp.inzuchtpruefung ?? null,
+          "Größencheck": vp.groessencheck ?? null,
+
+          "Extension": vp.extension ?? "—",
+          "Agouti": vp.agouti ?? "—",
+          "Cream/Pearl": vp.cream_pearl ?? "—",
+          "Dun": vp.dun ?? "—",
+          "Champagne": vp.champagne ?? "—",
+          "Mushroom": vp.mushroom ?? "—",
+          "Silver": vp.silver ?? "—",
+          "Graying": vp.graying ?? "—",
+          "Kit": vp.kit ?? "—",
+          "Overo": vp.overo ?? "—",
+          "Leopard": vp.leopard ?? "—",
+          "Patn1": vp.patn1 ?? "—",
+          "Patn2": vp.patn2 ?? "—",
+          "Splashed White": vp.splashed_white ?? "—",
+          "Flaxen": vp.flaxen ?? "—",
+          "Sooty": vp.sooty ?? "—",
+          "Rabicano": vp.rabicano ?? "—",
+          "Pangare": vp.pangare ?? "—",
+          "Dapples": vp.dapples ?? "—",
+          "Rotfaktor": vp.rotfaktor ?? "—",
+
+          "Papiere": vp.papiere ?? "—",
+          "Zuchtschau": vp.zuchtschau ?? "—",
+          "Papiere & Zuchtschau": vp.papiere_und_zuchtschau ?? "—",
+        };
 
         setStutenname(foal["Stutenname"]);
         setHengstname(foal["Hengstname"]);
@@ -75,6 +176,7 @@ export default function VerpaarungDetail() {
     };
     load();
   }, [id]);
+
 
   // Löschen
   const handleDelete = async () => {

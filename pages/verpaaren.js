@@ -149,33 +149,159 @@ export default function Verpaaren() {
     (h) => selectedHengstIds.has(h.id) && isInGroup("Hengste", h.id, hengsteGroupFilter)
   );
 
-    const newRows = selectedH.map((h) => computeFoalRow(stute, h));
-    setRows(newRows);
-    setHiddenRowKeys(new Set());
-    setCheckedRowKeys(new Set());
+      const newRows = selectedH.map((h) => computeFoalRow(stute, h));
+      setRows(newRows);
+      setHiddenRowKeys(new Set());
+      setCheckedRowKeys(new Set());
+    };
+
+    // ---- HELFER: Formatierung für DB ----
+  const asText = (v) => {
+    if (v == null) return null;
+    if (typeof v === "number") return v.toFixed(2);   // konsistente Darstellung
+    return String(v);                                  // z.B. "4,5 / 8,9"
   };
+  const asJsonb = (v) => {
+    if (v == null) return null;
+    if (typeof v === "object" && "text" in v) return v; // {text, style}
+    return { text: String(v) };
+  };
+
+  // ---- MAPPING: FoalRow -> DB-Spalten ----
+  const mapFoalRowToDbColumns = (r) => ({
+    // Basis
+    groesse: asText(r["Größe"]),
+    hauptdisziplin: asText(r["Hauptdisziplin"]),
+    fk_gesamt: asText(r["FK Gesamt"]),
+
+    // Disziplin 1
+    disziplin_1: asText(r["Disziplin 1"]),
+    fk_1: asText(r["FK 1"]),
+    fk_1_1: asText(r["FK 1.1"]),
+    fk_1_2: asText(r["FK 1.2"]),
+    fk_1_3: asText(r["FK 1.3"]),
+    fk_1_4: asText(r["FK 1.4"]),
+    fk_1_5: asText(r["FK 1.5"]),
+
+    // Disziplin 2
+    disziplin_2: asText(r["Disziplin 2"]),
+    fk_2: asText(r["FK 2"]),
+    fk_2_1: asText(r["FK 2.1"]),
+    fk_2_2: asText(r["FK 2.2"]),
+    fk_2_3: asText(r["FK 2.3"]),
+    fk_2_4: asText(r["FK 2.4"]),
+    fk_2_5: asText(r["FK 2.5"]),
+
+    // Disziplin 3
+    disziplin_3: asText(r["Disziplin 3"]),
+    fk_3: asText(r["FK 3"]),
+    fk_3_1: asText(r["FK 3.1"]),
+    fk_3_2: asText(r["FK 3.2"]),
+    fk_3_3: asText(r["FK 3.3"]),
+    fk_3_4: asText(r["FK 3.4"]),
+    fk_3_5: asText(r["FK 3.5"]),
+
+    // Charakter
+    temperament: asText(r["Temperament"]),
+    ausstrahlung: asText(r["Ausstrahlung"]),
+    aufmerksamkeit: asText(r["Aufmerksamkeit"]),
+    ausgeglichenheit: asText(r["Ausgeglichenheit"]),
+    haendelbarkeit: asText(r["Händelbarkeit"]),
+    nervenstaerke: asText(r["Nervenstärke"]),
+    intelligenz: asText(r["Intelligenz"]),
+
+    // Exterieur – Körper
+    kopf: asText(r["Kopf"]),
+    halsansatz: asText(r["Halsansatz"]),
+    hals: asText(r["Hals"]),
+    ruecken: asText(r["Rücken"]),
+
+    // Beine
+    vorderbeine_stand: asText(r["Vorderbeine Stand"]),
+    vorderbeine_boden: asText(r["Vorderbeine Boden"]),
+    vorderbeine_zehen: asText(r["Vorderbeine Zehen"]),
+    hinterbeine_stand: asText(r["Hinterbeine Stand"]),
+    hinterbeine_boden: asText(r["Hinterbeine Boden"]),
+    hinterbeine_zehen: asText(r["Hinterbeine Zehen"]),
+
+    // Gesamtnoten
+    interieur: asText(r["Interieur"]),
+    exterieur: asText(r["Exterieur"]),
+
+    // Prüfungen (mit Style)
+    inzuchtpruefung: asJsonb(r["Inzuchtprüfung"]),
+    groessencheck: asJsonb(r["Größencheck"]),
+
+    // Genetik
+    extension: asText(r["Extension"]),
+    agouti: asText(r["Agouti"]),
+    cream_pearl: asText(r["Cream/Pearl"]),
+    dun: asText(r["Dun"]),
+    champagne: asText(r["Champagne"]),
+    mushroom: asText(r["Mushroom"]),
+    silver: asText(r["Silver"]),
+    graying: asText(r["Graying"]),
+    kit: asText(r["Kit"]),
+    overo: asText(r["Overo"]),
+    leopard: asText(r["Leopard"]),
+    patn1: asText(r["Patn1"]),
+    patn2: asText(r["Patn2"]),
+    splashed_white: asText(r["Splashed White"]),
+    flaxen: asText(r["Flaxen"]),
+    sooty: asText(r["Sooty"]),
+    rabicano: asText(r["Rabicano"]),
+    pangare: asText(r["Pangare"]),
+    dapples: asText(r["Dapples"]),
+    rotfaktor: asText(r["Rotfaktor"]),
+
+    // Veranstaltungen / Papiere
+    papiere: asText(r["Papiere"]),
+    zuchtschau: asText(r["Zuchtschau"]),
+    papiere_und_zuchtschau: asText(r["Papiere & Zuchtschau"]),
+  });
+
 
   // Speichern
   const saveSelectedPairs = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Nicht eingeloggt");
+
       const toSave = rows.filter((r) => checkedRowKeys.has(r.key));
       if (toSave.length === 0) return;
-      const payload = toSave.map((r) => ({
-        user_id: user.id,
-        hengst_id: r.hengst_id,
-        stute_id: r.stute_id,
-      }));
-      const { error } = await supabase.from("Verpaarungen").upsert(payload, {
-        onConflict: "user_id,hengst_id,stute_id",
+
+      // Stuten-Snapshot aus der aktuellen Auswahl
+      const mare = (stuten || []).find((s) => s.id === selectedStuteId);
+      const mareName = mare?.Name ?? null;
+
+      // Für Hengst-Namen zusätzlich aus State mappen (falls computeFoalRow mal nichts gesetzt hat)
+      const hengstMap = new Map((hengste || []).map((h) => [h.id, h]));
+
+      const payload = toSave.map((r) => {
+        const h = hengstMap.get(r.hengst_id);
+        const base = {
+          user_id: user.id,
+          stute_id: r.stute_id,
+          hengst_id: r.hengst_id,
+          stute_name: mareName ?? r.stute_name ?? null,
+          hengst_name: r.hengst_name ?? h?.Name ?? null,
+        };
+        const details = mapFoalRowToDbColumns(r);
+        return { ...base, ...details };
       });
+
+      const { error } = await supabase
+        .from("Verpaarungen")
+        .upsert(payload, { onConflict: "user_id,hengst_id,stute_id" });
+
       if (error) throw error;
+
       showToast(`Gespeichert: ${toSave.length} Verpaarung(en).`);
     } catch (e) {
       setErr(e.message);
     }
   };
+
 
   // Renderer-Helfer (unterstützt {text,style:'red'})
   const renderCell = (val) => {

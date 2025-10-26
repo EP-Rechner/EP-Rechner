@@ -4,6 +4,33 @@ import { supabase } from '../lib/supabaseClient'
 import { parsePferdepass, parsePraeKoer, parseFarbgene, parseDisziplinen } from '../lib/epParser'
 import { mapToDbRow } from '../lib/mapToDb'
 
+function hasCycle(obj, seen = new WeakSet()) {
+  if (obj && typeof obj === 'object') {
+    if (seen.has(obj)) return true;
+    seen.add(obj);
+    for (const k of Object.keys(obj)) {
+      if (hasCycle(obj[k], seen)) return true;
+    }
+  }
+  return false;
+}
+function toPlainJSON(value) {
+  if (hasCycle(value)) {
+    throw new Error('Trainingsseiten-Parser lieferte eine zyklische Struktur');
+  }
+  return JSON.parse(JSON.stringify(value));
+}
+
+// optional: Text schlank & harmlos machen
+function cleanTrainingText(s = '') {
+  const trimmed = (s || '').replace(/\u00A0/g, ' ') // NBSP -> Space
+                           .replace(/\r/g, '')
+                           .replace(/[ \t]{2,}/g, ' ')
+                           .trim();
+  // harte Längenbremse gegen Monster-Paste
+  return trimmed.length > 100_000 ? trimmed.slice(0, 100_000) : trimmed;
+}
+
 export default function ImportTest() {
   const [link, setLink] = useState('')
   const [pferdepass, setPferdepass] = useState('')
@@ -50,11 +77,18 @@ export default function ImportTest() {
         pferdepassText: pferdepass 
       })
 
-      const dis = parseDisziplinen(
-        { primary: d1 || '-', second: d2 || '-', third: d3 || '-' },
-        { primaryText: t1, secondText: t2, thirdText: t3 },
-        t1 + "\n" + t2 + "\n" + t3   // oder den kompletten Trainingsseiten-Text, falls du den hast
-      )
+      const t1c = cleanTrainingText(t1);
+      const t2c = cleanTrainingText(t2);
+      const t3c = cleanTrainingText(t3);
+
+      // nur parsen, wenn überhaupt Trainingsinhalte da sind
+      const dis = (t1c || t2c || t3c || d1 || d2 || d3)
+        ? parseDisziplinen(
+            { primary: d1 || '-', second: d2 || '-', third: d3 || '-' },
+            { primaryText: t1c, secondText: t2c, thirdText: t3c }
+            // WICHTIG: KEIN dritter Parameter mehr
+          )
+        : { data: null };
 
       const combined = {
         link: link || null,
@@ -62,12 +96,17 @@ export default function ImportTest() {
         praekoer: pk.data || null,
         farbgene: fg.data || null,
         disziplinen: dis.data || null
-      }
+      };
 
-      setResult(combined)
+  // Zyklen abfangen, bevor es in den State geht
+  const combinedPlain = toPlainJSON(combined);
+  setResult(combinedPlain);
     } catch (e) {
-      setError(e.message)
-    }
+    const msg = /zyklische Struktur|Cycle/i.test(e.message)
+      ? 'Die eingefügte Trainingsseite hat ein unerwartetes Format. Bitte Trainings-Text vorerst weglassen – Fix folgt.'
+      : e.message;
+    setError(msg);
+  }
   }
 
   const handleSubmit = async () => {
@@ -85,11 +124,23 @@ export default function ImportTest() {
       pferdepassText: pferdepass 
     })
 
-    const dis = parseDisziplinen(
-      { primary: d1 || '-', second: d2 || '-', third: d3 || '-' },
-      { primaryText: t1, secondText: t2, thirdText: t3 },
-      t1 + "\n" + t2 + "\n" + t3
-    )
+    const t1c = cleanTrainingText(t1);
+    const t2c = cleanTrainingText(t2);
+    const t3c = cleanTrainingText(t3);
+
+    const dis = (t1c || t2c || t3c || d1 || d2 || d3)
+      ? parseDisziplinen(
+          { primary: d1 || '-', second: d2 || '-', third: d3 || '-' },
+          { primaryText: t1c, secondText: t2c, thirdText: t3c }
+        )
+      : { data: null };
+
+      if (dis?.data) {
+      console.log('[Import] Disziplinen/Können geparst:', dis.data);
+      } else if (t1c || t2c || t3c) {
+        console.warn('[Import] Trainingsseite vorhanden, aber kein Können erkannt.');
+      }
+
 
     const combined = {
       link: link || null,
@@ -97,20 +148,21 @@ export default function ImportTest() {
       praekoer: pk.data || null,
       farbgene: fg.data || null,
       disziplinen: dis.data || null
-    }
+    };
+
+    // Vor dem Mapping auf Plain-JSON trimmen (verhindert „too much recursion“)
+    const combinedPlain = toPlainJSON(combined);
+
 
     // --- Schritt 2: Speichern ---
     const user = await supabase.auth.getUser()
     const userId = user.data.user?.id
     if (!userId) throw new Error('Kein eingeloggter User gefunden')
 
-    const row = mapToDbRow(combined, userId, {
-  zucht,
-  zuchtziel,
-  notizen,
-  hengstOrt,
-  link
-});
+    const row = mapToDbRow(combinedPlain, userId, {
+    zucht, zuchtziel, notizen, hengstOrt, link
+  });
+
 
 
 
@@ -125,7 +177,31 @@ const { data: inserted, error: insertError } = await supabase
 
 if (insertError) throw insertError;
 
-// Falls Gruppen ausgewählt wurden → in pferde_gruppen speichern
+// 1) Können/Skills zuverlässig speichern (egal ob Spalte "disziplinen" oder "koennen")
+if (inserted && combinedPlain.disziplinen) {
+  // zuerst versuchen, in "disziplinen" zu schreiben
+  const { error: upErr1 } = await supabase
+    .from(table)
+    .update({ disziplinen: combinedPlain.disziplinen })
+    .eq('id', inserted.id);
+
+  if (upErr1) {
+    // Fallback: manche Schemas nennen das Feld "koennen"
+    const { error: upErr2 } = await supabase
+      .from(table)
+      .update({ koennen: combinedPlain.disziplinen })
+      .eq('id', inserted.id);
+
+    if (upErr2) {
+      console.warn('[Import] Skills update failed on both fields:', upErr1?.message, upErr2?.message);
+      // Optional: Benutzerfreundliche Meldung statt Abbruch
+      // setError('Können konnte nicht gespeichert werden (Datenbank-Feld fehlt).');
+      // return; // wenn du hier abbrechen willst
+    }
+  }
+}
+
+// 2) Falls Gruppen ausgewählt wurden → in pferde_gruppen speichern
 if (inserted && selectedGruppen.length > 0) {
   const pferdId = inserted.id;
   const rows = selectedGruppen.map(gruppeId => ({
@@ -135,10 +211,7 @@ if (inserted && selectedGruppen.length > 0) {
     user_id: userId
   }));
 
-  const { error: pgError } = await supabase
-    .from('pferde_gruppen')
-    .insert(rows);
-
+  const { error: pgError } = await supabase.from('pferde_gruppen').insert(rows);
   if (pgError) throw pgError;
 }
 
