@@ -22,6 +22,11 @@ export default function Pferde() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Spalten-Modal
+  const [colModalOpen, setColModalOpen] = useState(false);
+  const [colModalTable, setColModalTable] = useState(null); // "Hengste" | "Stuten"
+  const [colDraft, setColDraft] = useState({ visible: [], order: [] });
+
   // ✅ NEU: Status-Toast (grüne Box oben, auto-hide)
   const [statusMessage, setStatusMessage] = useState("");
   const [statusType, setStatusType] = useState("success"); // "success" | "error"
@@ -55,6 +60,14 @@ export default function Pferde() {
     return saved ? Number(saved) : 25;
   }
   return 25;
+});
+
+// Spalten-Prefs pro Tabelle (Hengste/Stuten)
+const DEFAULT_COL_PREFS = { visible: null, order: null };
+
+const [colPrefs, setColPrefs] = useState({
+  Hengste: DEFAULT_COL_PREFS,
+  Stuten: DEFAULT_COL_PREFS,
 });
 
   const [pageHengste, setPageHengste] = useState(1);  // Seite für Hengste
@@ -120,6 +133,23 @@ useEffect(() => {
           supabase.from("gruppen").select("*").eq("user_id", user.id),
           supabase.from("pferde_gruppen").select("*").eq("user_id", user.id), // Join-Tabelle
         ]);
+
+        // ✅ Spalten-Prefs laden (Hengste/Stuten getrennt)
+        const { data: prefsRows, error: pErr } = await supabase
+          .from("user_table_prefs")
+          .select("table_name, pref")
+          .eq("user_id", user.id)
+          .eq("pref_key", "columns");
+
+        if (pErr) throw pErr;
+
+        const prefsMap = { Hengste: DEFAULT_COL_PREFS, Stuten: DEFAULT_COL_PREFS };
+        (prefsRows || []).forEach((r) => {
+          if (r.table_name === "Hengste" || r.table_name === "Stuten") {
+            prefsMap[r.table_name] = r.pref;
+          }
+        });
+        setColPrefs(prefsMap);
 
         if (hError) throw hError;
         if (sError) throw sError;
@@ -516,6 +546,47 @@ const { subscription } = supabase.auth.onAuthStateChange((event, session) => {
     setEditOpen(true);
   };
 
+  const saveColumnPrefs = async (table, pref) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+    const { error } = await supabase.from("user_table_prefs").upsert(
+      {
+        user_id: user.id,
+        table_name: table,
+        pref_key: "columns",
+        pref,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,table_name,pref_key" }
+    );
+
+    if (error) {
+      showStatus("Fehler beim Speichern der Spalten.", "error");
+      return;
+    }
+
+    setColPrefs((p) => ({ ...p, [table]: pref }));
+    showStatus("✅ Spalten gespeichert!");
+  };
+
+    const openColModal = (table, baseCols) => {
+    const pref = colPrefs[table] || DEFAULT_COL_PREFS;
+
+    const visible = pref.visible ?? baseCols;
+    const order = pref.order ?? baseCols;
+
+    // order bereinigen + neue Spalten anhängen
+    const orderFixed = [
+      ...order.filter((c) => baseCols.includes(c)),
+      ...baseCols.filter((c) => !order.includes(c)),
+    ];
+
+    setColModalTable(table); // "Hengste" | "Stuten"
+    setColDraft({ visible: [...visible], order: [...orderFixed] });
+    setColModalOpen(true);
+  };
+
   const applyBatchEdit = async () => {
     if (!editTable) return;
     const ids =
@@ -588,16 +659,29 @@ const { subscription } = supabase.auth.onAuthStateChange((event, session) => {
   return set ? set.has(selectedGroup) : false;
 };
 
+    const filterRowsByGroup = (rows, table) => {
+      if (selectedGroup === "all") return rows;
+      return rows.filter((r) => isInSelectedGroup(table, r.id));
+    };
 
-  const filterRowsByGroup = (rows, table) => {
-    if (selectedGroup === "all") return rows;
-    return rows.filter((r) => isInSelectedGroup(table, r.id));
+    const applyColumnPrefs = (allCols, prefs) => {
+    const visibleSet = new Set(prefs?.visible ?? allCols);
+
+    const ordered = prefs?.order
+      ? [
+          ...prefs.order.filter((c) => allCols.includes(c)),
+          ...allCols.filter((c) => !prefs.order.includes(c)),
+        ]
+      : allCols;
+
+    return ordered.filter((c) => visibleSet.has(c));
   };
 
   // ---------- Tabellen-Render ----------
   const renderTable = (rows, title, color, table) => {
     const selectedSet = table === "Hengste" ? selectedHengste : selectedStuten;
     const filtered = filterRowsByGroup(rows, table);
+
     // Pagination-Berechnung (NEU)
 const page = table === "Hengste" ? pageHengste : pageStuten;
 const setPage = table === "Hengste" ? setPageHengste : setPageStuten;
@@ -708,9 +792,11 @@ const pageRows = filtered.slice(start, end);
       );
     }
 
-    const columns = Object.keys(filtered[0]).filter(
+        const baseCols = Object.keys(filtered[0]).filter(
       (col) => col !== "id" && col !== "user_id" && col !== "created_at"
     );
+
+const columns = applyColumnPrefs(baseCols, colPrefs[table]);
 
     const allChecked = pageRows.length > 0 && pageRows.every((r) => selectedSet.has(r.id));
     const anySelected = selectedSet.size > 0; // unverändert: Auswahl über Seiten hinweg bleibt bestehen
@@ -748,6 +834,14 @@ const pageRows = filtered.slice(start, end);
             title="Ausgewählte Pferde zu einer oder mehreren Gruppen hinzufügen/entfernen"
           >
             Zu Gruppe hinzufügen / entfernen
+          </button>
+
+          <button
+            className="btn"
+            onClick={() => openColModal(table, baseCols)}
+            title="Spalten ein-/ausblenden und Reihenfolge ändern"
+          >
+            Spalten
           </button>
         </div>
 
@@ -1139,6 +1233,104 @@ const pageRows = filtered.slice(start, end);
         </div>
       )}
 
+        {/* Modal: Spalten ein-/ausblenden + Reihenfolge */}
+  {colModalOpen && (
+    <div className="modal-backdrop" onClick={() => setColModalOpen(false)}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>Spalten anpassen ({colModalTable})</h3>
+        <p style={{ marginTop: -6, color: "#666" }}>
+          Häkchen = sichtbar. Pfeile = Reihenfolge.
+        </p>
+
+        <div className="group-checkbox-grid">
+          {colDraft.order.map((col, idx) => {
+            const checked = colDraft.visible.includes(col);
+
+            return (
+              <div
+                key={col}
+                style={{ display: "flex", gap: 8, alignItems: "center" }}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) => {
+                    setColDraft((d) => {
+                      const vis = new Set(d.visible);
+                      if (e.target.checked) vis.add(col);
+                      else vis.delete(col);
+                      return { ...d, visible: Array.from(vis) };
+                    });
+                  }}
+                />
+
+                <span style={{ flex: 1 }}>{col}</span>
+
+                <button
+                  className="btn"
+                  disabled={idx === 0}
+                  onClick={() => {
+                    setColDraft((d) => {
+                      const arr = [...d.order];
+                      [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+                      return { ...d, order: arr };
+                    });
+                  }}
+                  title="Nach oben"
+                >
+                  ↑
+                </button>
+
+                <button
+                  className="btn"
+                  disabled={idx === colDraft.order.length - 1}
+                  onClick={() => {
+                    setColDraft((d) => {
+                      const arr = [...d.order];
+                      [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+                      return { ...d, order: arr };
+                    });
+                  }}
+                  title="Nach unten"
+                >
+                  ↓
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="modal-actions sticky-actions">
+          <button className="btn" onClick={() => setColModalOpen(false)}>
+            Abbrechen
+          </button>
+
+          <button
+            className="btn danger"
+            onClick={() => {
+              // Reset: alles sichtbar, Reihenfolge bleibt wie aktuell im Draft
+              const base = colDraft.order;
+              setColDraft({ visible: [...base], order: [...base] });
+            }}
+            title="Alle Spalten wieder einblenden"
+          >
+            Reset
+          </button>
+
+          <button
+            className="btn primary"
+            onClick={async () => {
+              await saveColumnPrefs(colModalTable, colDraft);
+              setColModalOpen(false);
+            }}
+          >
+            Speichern
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
+
       <style jsx>{`
         .page {
           padding: 0;
@@ -1355,6 +1547,9 @@ const pageRows = filtered.slice(start, end);
           border-radius: 10px;
           box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
           padding: 18px;
+
+          max-height: calc(100vh - 80px);
+          overflow-y: auto;
         }
         .modal h3 {
           margin: 0 0 12px 0;
@@ -1381,6 +1576,17 @@ const pageRows = filtered.slice(start, end);
           gap: 10px;
           margin-top: 14px;
         }
+
+        .sticky-actions {
+          position: sticky;
+          bottom: 0;
+          background: #fff;
+          padding-top: 10px;
+          margin-top: 12px;
+          border-top: 1px solid #e5e7eb;
+          z-index: 5;
+        }
+
         .modal .btn {
           padding: 8px 12px;
           border: 1px solid #cbd5e1;
@@ -1394,11 +1600,17 @@ const pageRows = filtered.slice(start, end);
           border-color: #2563eb;
         }
 
+        .modal .btn.danger {
+          background: #ef4444;
+          color: #fff;
+          border-color: #ef4444;
+        }
+
         /* Gruppen-Modal Checkboxen */
         .group-checkbox-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-          gap: 8px 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
           margin: 10px 0 6px;
         }
         .group-check {

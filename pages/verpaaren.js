@@ -23,6 +23,15 @@ export default function Verpaaren() {
   const [hiddenRowKeys, setHiddenRowKeys] = useState(new Set());
   const [checkedRowKeys, setCheckedRowKeys] = useState(new Set());
 
+  // Spalten-Prefs (Verpaaren Ergebnis-Tabelle)
+  const DEFAULT_COL_PREFS = { visible: null, order: null };
+
+  const [colPrefs, setColPrefs] = useState(DEFAULT_COL_PREFS);
+
+  // Spalten-Modal
+  const [colModalOpen, setColModalOpen] = useState(false);
+  const [colDraft, setColDraft] = useState({ visible: [], order: [] });
+
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
   const [toast, setToast] = useState(null);
@@ -50,13 +59,27 @@ export default function Verpaaren() {
           { data: hengsteData, error: hErr },
           { data: gruppenData, error: gErr },
           { data: linksData,   error: lErr },
+          { data: prefsRows,   error: pErr },
         ] = await Promise.all([
           supabase.from("Stuten").select("*").eq("user_id", user.id),
           supabase.from("Hengste").select("*").eq("user_id", user.id),
           supabase.from("gruppen").select("*").eq("user_id", user.id),
           supabase.from("pferde_gruppen").select("*").eq("user_id", user.id),
+
+          // ✅ NEU
+          supabase
+            .from("user_table_prefs")
+            .select("pref")
+            .eq("user_id", user.id)
+            .eq("table_name", "Verpaaren")
+            .eq("pref_key", "columns")
+            .maybeSingle(),
         ]);
-        if (sErr) throw sErr; if (hErr) throw hErr; if (gErr) throw gErr; if (lErr) throw lErr;
+        if (sErr) throw sErr; if (hErr) throw hErr; if (gErr) throw gErr; if (lErr) throw lErr;if (pErr) throw pErr;
+
+          if (prefsRows?.pref) {
+            setColPrefs(prefsRows.pref);
+          }
         if (!alive) return;
 
         setStuten(stutenData || []);
@@ -119,6 +142,36 @@ export default function Verpaaren() {
     setRows([]);
   }, [selectedStuteId]);
 
+    const applyColumnPrefs = (allCols, prefs) => {
+    const visibleSet = new Set(prefs?.visible ?? allCols);
+
+    const ordered = prefs?.order
+      ? [
+          ...prefs.order.filter((c) => allCols.includes(c)),
+          ...allCols.filter((c) => !prefs.order.includes(c)),
+        ]
+      : allCols;
+
+    const filtered = ordered.filter((c) => visibleSet.has(c));
+if (!filtered.includes("Hengstname")) filtered.unshift("Hengstname");
+return filtered;
+  };
+
+  const openColModal = (baseCols) => {
+    const pref = colPrefs || DEFAULT_COL_PREFS;
+
+    const visible = pref.visible ?? baseCols;
+    const order = pref.order ?? baseCols;
+
+    const orderFixed = [
+      ...order.filter((c) => baseCols.includes(c)),
+      ...baseCols.filter((c) => !order.includes(c)),
+    ];
+
+    setColDraft({ visible: [...visible], order: [...orderFixed] });
+    setColModalOpen(true);
+  };
+
   // Spalten
   const allColumns = useMemo(() => [
     "Hengstname",
@@ -137,6 +190,32 @@ export default function Verpaaren() {
     "Extension","Agouti","Cream/Pearl","Dun","Champagne","Mushroom","Silver","Graying","Kit","Overo","Leopard","Patn1","Patn2","Splashed White","Flaxen","Sooty","Rabicano","Pangare","Dapples","Rotfaktor",
     "Papiere","Zuchtschau","Papiere & Zuchtschau",
   ], []);
+
+  const visibleColumns = applyColumnPrefs(allColumns, colPrefs);
+
+    const saveColumnPrefs = async (pref) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { error } = await supabase.from("user_table_prefs").upsert(
+      {
+        user_id: user.id,
+        table_name: "Verpaaren",
+        pref_key: "columns",
+        pref,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,table_name,pref_key" }
+    );
+
+    if (error) {
+      setErr("Fehler beim Speichern der Spalten.");
+      return;
+    }
+
+    setColPrefs(pref);
+    showToast("Spalten gespeichert");
+  };
 
   // Ergebnisse bauen
   const buildRows = () => {
@@ -405,6 +484,12 @@ export default function Verpaaren() {
                 <button className="btn success" onClick={saveSelectedPairs} disabled={checkedRowKeys.size===0}>
                   Markierte Verpaarungen speichern
                 </button>
+                <button
+                  className="btn"
+                  onClick={() => openColModal(allColumns)}
+                >
+                  Spalten
+                </button>
               </div>
 
               <div className="table-hscroll">
@@ -414,7 +499,11 @@ export default function Verpaaren() {
                       <th style={{width: 42}} title="Für Speichern auswählen">✓</th>
                       <th style={{width: 80}}>Sichtbar</th>
                       <th>Hengstname</th>
-                      {allColumns.filter(c=>c!=="Hengstname").map((c)=>(<th key={c}>{c}</th>))}
+                        {visibleColumns
+                          .filter(c => c !== "Hengstname")
+                          .map((c)=>(
+                            <th key={c}>{c}</th>
+                        ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -427,10 +516,11 @@ export default function Verpaaren() {
                             <input
                               type="checkbox"
                               checked={checked}
-                              onChange={(e)=>{
-                                setCheckedRowKeys(prev=>{
+                              onChange={(e) => {
+                                setCheckedRowKeys((prev) => {
                                   const next = new Set(prev);
-                                  if (e.target.checked) next.add(r.key); else next.delete(r.key);
+                                  if (e.target.checked) next.add(r.key);
+                                  else next.delete(r.key);
                                   return next;
                                 });
                               }}
@@ -447,8 +537,10 @@ export default function Verpaaren() {
                               <Link href={{ pathname: `/pferd/${r.hengst_id}`, query: { table: "Hengste" } }} className="small-link">öffnen</Link>
                             </div>
                           </td>
-                          {allColumns.filter(c=>c!=="Hengstname").map((col)=>(
-                            <td key={col}>{renderCell(r[col])}</td>
+                          {visibleColumns
+                            .filter(c => c !== "Hengstname")
+                            .map((col)=>(
+                              <td key={col}>{renderCell(r[col])}</td>
                           ))}
                         </tr>
                       );
@@ -460,6 +552,103 @@ export default function Verpaaren() {
           )}
         </>
       )}
+
+      {/* Modal: Spalten ein-/ausblenden + Reihenfolge */}
+  {colModalOpen && (
+    <div className="modal-backdrop" onClick={() => setColModalOpen(false)}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>Spalten anpassen</h3>
+        <p style={{ marginTop: -6, color: "#666" }}>
+          Häkchen = sichtbar. Pfeile = Reihenfolge.
+        </p>
+
+        <div className="col-list">
+          {colDraft.order.map((col, idx) => {
+            const checked = colDraft.visible.includes(col);
+
+            return (
+              <div
+                key={col}
+                className="col-item"
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) => {
+                    setColDraft((d) => {
+                      const vis = new Set(d.visible);
+                      if (e.target.checked) vis.add(col);
+                      else vis.delete(col);
+                      return { ...d, visible: Array.from(vis) };
+                    });
+                  }}
+                />
+
+                <span className="col-name">{col}</span>
+
+                <button
+                  className="btn small"
+                  disabled={idx === 0}
+                  onClick={() => {
+                    setColDraft((d) => {
+                      const arr = [...d.order];
+                      [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+                      return { ...d, order: arr };
+                    });
+                  }}
+                  title="Nach oben"
+                >
+                  ↑
+                </button>
+
+                <button
+                  className="btn small"
+                  disabled={idx === colDraft.order.length - 1}
+                  onClick={() => {
+                    setColDraft((d) => {
+                      const arr = [...d.order];
+                      [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+                      return { ...d, order: arr };
+                    });
+                  }}
+                  title="Nach unten"
+                >
+                  ↓
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="modal-actions sticky-actions">
+          <button className="btn" onClick={() => setColModalOpen(false)}>
+            Abbrechen
+          </button>
+
+          <button
+            className="btn danger"
+            onClick={() => {
+              const base = colDraft.order;
+              setColDraft({ visible: [...base], order: [...base] });
+            }}
+            title="Alle Spalten wieder einblenden"
+          >
+            Reset
+          </button>
+
+          <button
+            className="btn primary"
+            onClick={async () => {
+              await saveColumnPrefs(colDraft);
+              setColModalOpen(false);
+            }}
+          >
+            Speichern
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
 
       <style jsx>{`
         .page { padding: 0; font-size: 13px; color: #222; }
@@ -488,6 +677,64 @@ export default function Verpaaren() {
         .result h2 { padding: 0 16px; font-size: 14px; }
         .table-actions { display: flex; gap: 8px; padding: 4px 16px 8px; }
         .name-cell { display: flex; gap: 8px; align-items: baseline; }
+        .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+
+  .modal {
+    background: #fff;
+    width: 680px;
+    max-width: calc(100% - 32px);
+    border-radius: 10px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+    padding: 18px;
+
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+  }
+
+  .col-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 10px 0 6px;
+  }
+
+  .col-item {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .col-name {
+    flex: 1;
+  }
+
+  .sticky-actions {
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    padding-top: 10px;
+    margin-top: 12px;
+    border-top: 1px solid #e5e7eb;
+    z-index: 5;
+  }
+
+  .btn.danger {
+    background: #ef4444;
+    color: #fff;
+    border-color: #ef4444;
+  }
+  .btn.danger:hover {
+    background: #dc2626;
+    border-color: #dc2626;
+  }
       `}</style>
     </div>
   );
